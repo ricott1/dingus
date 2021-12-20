@@ -1,6 +1,4 @@
-import time
 import asyncio
-
 import sys
 import signal
 import dingus.urwid_tui.tui as tui
@@ -36,27 +34,26 @@ class Processor(object):
 
         sys.exit(0)
 
-    async def updater(self, interval):
+    async def updater(self):
+        deltatime = 0.25
         while True:
-            self.on_update()
-            await asyncio.sleep(interval)
+            self.process(deltatime)
+            await asyncio.sleep(deltatime)
 
-    def process(self) -> None:
+    def process(self, deltatime: float) -> None:
         for event in list(self.client.events):
             # We could plugin a generic event processor here
             self.gui.handle_event(event)
             self.client.events.remove(event)
         
-        deltatime = 0.25
         self.gui.on_update(deltatime)
-        self.event_loop.call_later(deltatime, self.process)
 
     def start(self) -> None:
         print("Firing up Dingus socket client")
         self.tasks.append(self.event_loop.create_task(self.client.start()))
         self.gui.start()
         print("Starting update thread")
-        self.tasks.append(self.event_loop.create_task(self.updater(0.5)))
+        self.tasks.append(self.event_loop.create_task(self.updater()))
         
 
         

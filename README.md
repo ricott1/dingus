@@ -6,10 +6,7 @@ Lisk wallet in python
 Use `python3.10`. 
 Probably a lot of stuff, like:
 
-`pip install urwid`
-`pip install "python-socketio[asyncio_client]"`
-`pip install protobuf`
-`pip install requests`
+`pip install urwid "python-socketio[asyncio_client]" protobuf requests pynacl`
 
 ## Run
 
