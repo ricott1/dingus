@@ -4,6 +4,7 @@ import dingus.constants as constants
 import dingus.utils as utils
 from nacl.signing import SigningKey, VerifyKey
 
+
 class Address(bytes):
     def __init__(self, source) -> None:
         assert len(self) == constants.ADDRESS_LENGTH, "Invalid address length."
@@ -29,3 +30,5 @@ class PrivateKey(SigningKey):
     
     def to_public_key(self) -> PublicKey:
         return PublicKey(self.verify_key._key)
+
+

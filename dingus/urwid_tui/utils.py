@@ -1,4 +1,6 @@
 import urwid
+import logging
+import collections
 
 WIDTH = 96
 HEIGHT = 40
@@ -15,6 +17,29 @@ PALETTE = [
     ("red", "light red", "black")
 ]
 
+
+class TailLogHandler(logging.Handler):
+
+    def __init__(self, log_queue):
+        logging.Handler.__init__(self)
+        self.log_queue = log_queue
+
+    def emit(self, record):
+        self.log_queue.append(self.format(record))
+
+
+class TailLogger(object):
+
+    def __init__(self, maxlen):
+        self._log_queue = collections.deque(maxlen=maxlen)
+        self._log_handler = TailLogHandler(self._log_queue)
+
+    def contents(self):
+        return '\n'.join(self._log_queue)
+
+    @property
+    def log_handler(self):
+        return self._log_handler
 
 class SelectableColumns(urwid.Columns):
     def __init__(self, widget_list, focus_column=None, dividechars=0, on_keypress=None):

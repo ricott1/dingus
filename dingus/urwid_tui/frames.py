@@ -2,6 +2,7 @@ import urwid
 import time
 
 from dingus.urwid_tui.utils import create_button, attr_button, image_to_text, WIDTH, HEIGHT
+from dingus.types.event import Event
 
 MIN_HEADER_HEIGHT = 3
 MAX_MENU_WIDTH = 48
@@ -13,13 +14,13 @@ class UiFrame(urwid.Frame):
         super().__init__(body, **kwargs)
         self.completed = False
 
-    def handle_input(self, _input, pressed_since=0):
+    def handle_input(self, _input: str, pressed_since: float=0) -> None:
         pass
 
-    def on_update(self, deltatime):
+    async def on_update(self, deltatime: float) -> None:
         pass
 
-    def handle_event(self, event):
+    def handle_event(self, event: Event):
         pass
 
 class WarningFrame(UiFrame):
