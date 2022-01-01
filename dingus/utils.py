@@ -10,6 +10,8 @@ def passphrase_to_sk(passphrase: str) -> SigningKey:
     seed = sha256(passphrase.encode()).digest()
     return types.PrivateKey(seed)
 
+
+
 def public_key_to_address(pk: bytes) -> bytes:
     return sha256(pk).digest()[:20].hex()
 

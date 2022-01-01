@@ -65,8 +65,13 @@ class TUI(component.ComponentMixin, urwid.Pile):
 
     def handle_input(self, _input: str, pressed_since: float = 0) -> None:
         if _input in ("q", "Q", "esc"):
-            self.emit_event("quit_input", {}, ["user_input"])
-        self.active_body.handle_input(_input, pressed_since)
+            self.update_active_body("quit")
+        elif _input in ("e", "E"):
+            self.update_active_body("explorer")
+        elif _input in ("a", "A"):
+            self.update_active_body("account")
+        else:
+            self.active_body.handle_input(_input, pressed_since)
 
     async def on_update(self, _deltatime: float) -> None:
         cols, rows = terminal_size()
@@ -149,24 +154,6 @@ class AccountInfo(frames.UiFrame):
         self.parent = parent
         _body = urwid.ListBox(urwid.SimpleFocusListWalker([urwid.Text("\n  No account data")]))
         super().__init__(_body, **kwargs)
-    
-    def update_block_data(self, block_data: dict) -> None:
-        _block_data_list = [urwid.Text(f"\n  {k}: {v}") for k, v in block_data.items()]
-        columns = []
-        for k, v in block_data.items():
-            btn = create_button(f"{v}")
-            if k == "previousBlockId":
-                urwid.connect_signal(btn, 'click', lambda btn, id=v: self.parent.emit_event("request_block", {"id": id}, ["user_input"]))
-            btn = urwid.AttrMap(btn, None, focus_map="line")
-            col = urwid.Columns([urwid.Text(f"\n  {k}:"), btn]) 
-            columns.append(col)
-        
-        _body = urwid.ListBox(urwid.SimpleFocusListWalker(columns))
-        self.contents["body"] = (_body, None)
-    
-    async def handle_event(self, event: Event) -> None:
-        if event.name == "new_block":
-           self.update_block_data(event.data)
         
     async def on_update(self, event: dict) -> None:
         pass
