@@ -2,15 +2,13 @@ from hashlib import sha256
 from nacl.signing import SigningKey, VerifyKey
 import os
 
-import types.types as types
+import dingus.types.keys as keys
 from dingus.constants import ADDRESS_LENGTH, PUB_KEY_LENGTH
 
 
-def passphrase_to_sk(passphrase: str) -> SigningKey:
+def passphrase_to_sk(passphrase: str) -> keys.PrivateKey:
     seed = sha256(passphrase.encode()).digest()
-    return types.PrivateKey(seed)
-
-
+    return keys.PrivateKey(seed)
 
 def public_key_to_address(pk: bytes) -> bytes:
     return sha256(pk).digest()[:20].hex()
@@ -21,11 +19,11 @@ def hash(msg: bytes) -> bytes:
 def sign(msg: bytes, sk: SigningKey) -> bytes:
     return sk.sign(msg).signature
 
-def random_address() -> types.Address:
-    return types.Address(os.urandom(ADDRESS_LENGTH))
+def random_address() -> keys.Address:
+    return keys.Address(os.urandom(ADDRESS_LENGTH))
 
-def random_public_key() -> types.PublicKey:
-    return types.PublicKey(os.urandom(PUB_KEY_LENGTH))
+def random_public_key() -> keys.PublicKey:
+    return keys.PublicKey(os.urandom(PUB_KEY_LENGTH))
 
 def mock_block() -> dict:
     return{
