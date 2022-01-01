@@ -1,5 +1,5 @@
+# from nacl.hash import sha256 
 from hashlib import sha256 
-from nacl.signing import SigningKey, VerifyKey
 import os
 
 import dingus.types.keys as keys
@@ -10,13 +10,10 @@ def passphrase_to_sk(passphrase: str) -> keys.PrivateKey:
     seed = sha256(passphrase.encode()).digest()
     return keys.PrivateKey(seed)
 
-def public_key_to_address(pk: bytes) -> bytes:
-    return sha256(pk).digest()[:20].hex()
-
 def hash(msg: bytes) -> bytes:
     return sha256(msg).digest()
 
-def sign(msg: bytes, sk: SigningKey) -> bytes:
+def sign(msg: bytes, sk: keys.PrivateKey) -> bytes:
     return sk.sign(msg).signature
 
 def random_address() -> keys.Address:
@@ -48,5 +45,3 @@ def mock_block() -> dict:
         'seedReveal': '015d705212c99e897ce00d5a77eacef5'
         }
     
-
- 

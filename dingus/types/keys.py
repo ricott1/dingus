@@ -18,7 +18,7 @@ class Address(bytes):
 
 class PublicKey(VerifyKey):
     def to_address(self) -> Address:
-        return Address(utils.hash(self.encode(encoder=HexEncoder))[:20])
+        return Address(utils.hash(self.encode())[:20])
 
 class PrivateKey(SigningKey):
     @classmethod
@@ -26,8 +26,10 @@ class PrivateKey(SigningKey):
         return utils.passphrase_to_sk(passphrase)
     
     @classmethod
-    def from_json(cls, filename: File) -> PrivateKey:
-        return utils.passphrase_to_sk(passphrase)
+    def from_json(cls, filename: str) -> PrivateKey:
+        with open(f"dingus/accounts/{filename}", "r") as f:
+            _key_hex = f.read()
+        return PrivateKey(bytes.fromhex(_key_hex))
 
     def __init__(self, source) -> None:
         super().__init__(source)
@@ -37,8 +39,7 @@ class PrivateKey(SigningKey):
     
     def to_json(self) -> None:
         filename = f"{self.to_public_key().to_address().hex()}.json"
-        _key_hex = self.encode(encoder=HexEncoder).hex()
-        print(f"Dumping {_key_hex} to {filename}")
+        _key_hex = self.encode().hex()
         with open(f"dingus/accounts/{filename}", "w") as f:
             f.write(_key_hex)
 
