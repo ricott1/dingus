@@ -231,7 +231,7 @@ class AccountInfo(frames.UiPile):
     def prompt_password(self, btn) -> None:
         bottom_w = self.contents[2][0]
         top_w = PasswordPrompt(self.new_account, self.update_body)
-        _body = urwid.Overlay(top_w, bottom_w, "center", 20, "middle", 12)
+        _body = urwid.Overlay(top_w, bottom_w, "center", 32, ('relative', 0.4), 12)
         self.contents[2] = (_body, ("weight", 1))
 
     def new_account(self, password: str) -> None:
