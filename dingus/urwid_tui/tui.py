@@ -1,17 +1,22 @@
 import urwid
 import time
+import os
 import logging
 import traceback
 
 import dingus.component as component
 import dingus.urwid_tui.frames as frames
-from dingus.urwid_tui.utils import PALETTE, WIDTH, HEIGHT, create_button, terminal_size, attr_button
+from dingus.urwid_tui.utils import PALETTE, WIDTH, HEIGHT, create_button, terminal_size, attr_button, rgb_list_to_text
 from dingus.types.event import Event
+import dingus.utils as utils
+from dingus.constants import LSK
+import dingus.types.keys as keys
 
 
 class TUI(component.ComponentMixin, urwid.Pile):
     def __init__(self, logger) -> None:
         self.logger = logger
+        self.events = []
         self.warning_frame = frames.WarningFrame()
         _title = urwid.BoxAdapter(frames.TitleFrame(["Dingus"]), height=12)
         self.base_header = CurrentTipHeader(self)
@@ -25,11 +30,11 @@ class TUI(component.ComponentMixin, urwid.Pile):
         super().__init__(logger, [("pack", _header), self.bodies["explorer"], ("pack", _footer)])
 
     @property
-    def active_body(self) -> frames.UiFrame:
+    def active_body(self) -> frames.UiFrame | frames.UiPile:
         return self.contents[1][0]
 
     @active_body.setter
-    def active_body(self, _body: frames.UiFrame) -> None:
+    def active_body(self, _body: frames.UiFrame | frames.UiPile) -> None:
         self.contents[1] = (_body, ("weight", 1))
     
     def update_active_body(self, name: str) -> None:
@@ -47,8 +52,10 @@ class TUI(component.ComponentMixin, urwid.Pile):
 
     def _exception_handler(self, loop, context):
         self.stop()
-        print(traceback.format_exc())
         exc = context.get('exception')
+        print(traceback.format_exc())
+        print(type(exc), exc, exc.__traceback__)
+ 
         if exc:
             if not isinstance(exc, urwid.ExitMainLoop):
                 # Store the exc_info so we can re-raise after the loop stops
@@ -60,8 +67,11 @@ class TUI(component.ComponentMixin, urwid.Pile):
         self.loop.stop()
 
     async def handle_event(self, event: dict) -> None:
-        await self.active_body.handle_event(event)
-        await self.base_header.handle_event(event)
+        for name in self.bodies:
+            if hasattr(self.bodies[name], "handle_event"):
+                await self.bodies[name].handle_event(event)
+        if hasattr(self.base_header, "handle_event"):
+            await self.base_header.handle_event(event)
 
     def handle_input(self, _input: str, pressed_since: float = 0) -> None:
         if _input in ("q", "Q", "esc"):
@@ -82,8 +92,10 @@ class TUI(component.ComponentMixin, urwid.Pile):
         else:
             if self.active_body is self.warning_frame:
                 self.active_body = self.suspended_body
-            await self.base_header.on_update(_deltatime)
-            await self.active_body.on_update(_deltatime)
+            if hasattr(self.base_header, "on_update"):
+                await self.base_header.on_update(_deltatime)
+            if hasattr(self.active_body, "on_update"):
+                await self.active_body.on_update(_deltatime)
     
 
 class CurrentTipHeader(frames.UiFrame):
@@ -142,18 +154,89 @@ class BlockInfo(frames.UiFrame):
         self.contents["body"] = (_body, None)
     
     async def handle_event(self, event: Event) -> None:
-        if event.name == "requested_block":
+        if event.name == "response_block":
            self.update_block_data(event.data)
-        
-    async def on_update(self, event: dict) -> None:
-        pass
 
 
-class AccountInfo(frames.UiFrame):
+class AccountInfo(frames.UiPile):
     def __init__(self, parent, **kwargs) -> None:
         self.parent = parent
-        _body = urwid.ListBox(urwid.SimpleFocusListWalker([urwid.Text("\n  No account data")]))
-        super().__init__(_body, **kwargs)
+        new_act_btn = create_button("New", borders=False)
+        urwid.connect_signal(new_act_btn, 'click', self.new_account)
+        new_act_btn = urwid.AttrMap(new_act_btn, None, focus_map="line")
+        self.select_act_btn = create_button("Change", borders=False)
+        urwid.connect_signal(self.select_act_btn, 'click', self.select_account)
+        select_act_btn = urwid.AttrMap(self.select_act_btn, None, focus_map="line")
+        _btns = urwid.Columns([urwid.LineBox(select_act_btn), urwid.LineBox(new_act_btn)])
         
-    async def on_update(self, event: dict) -> None:
-        pass
+        _header = urwid.LineBox(urwid.Text(""))
+        _widgets = [("pack", _header), ("pack", _btns), urwid.ListBox(urwid.SimpleFocusListWalker([]))]
+        super().__init__(_widgets, **kwargs)
+        self.current_account = None
+        self.account_balance = 0
+        self.update_body()
+
+    def update_body(self):
+        accounts = os.listdir("dingus/accounts")
+        self.select_act_btn.disabled = bool(len(accounts) <= 1)
+        
+        if not accounts:
+            header_data = urwid.Text("No account data, create a new one first.", align= "center")
+            body_data = [urwid.Text("")]
+        elif not self.current_account:
+            self.current_account = accounts[0]
+
+        if self.current_account:
+            try:
+                pk = keys.PrivateKey.from_json(self.current_account)
+                public_key = pk.to_public_key().encode().hex()
+                address = pk.to_public_key().to_address().to_lsk32()
+                avatar = rgb_list_to_text(pk.to_public_key().to_address().to_avatar())
+                btn = attr_button(["\n"] + avatar + ["\ncopy"], borders=False, on_press=lambda btn : utils.copy_to_clipboard(address))
+                header_data = urwid.Columns([(16, btn), urwid.Text(f"\n{address}\n\n{self.account_balance} LSK", align="center")])
+                body_data = [urwid.Text(f"Public key: {public_key}")]
+            except Exception as e:
+                input(e)
+                header_data = urwid.Text("Invalid account file.", align= "center")
+                body_data = [urwid.Text("")]
+       
+        _body = urwid.ListBox(urwid.SimpleFocusListWalker(body_data))
+        self.contents[0] = (urwid.LineBox(header_data), ("pack", None))
+        self.contents[2] = (_body, ("weight", 1))
+
+    def new_account(self, btn) -> None:
+        sk = utils.random_private_key()
+        sk.to_json()
+        self.update_body()
+    
+    def select_account(self, btn) -> None:
+        def select(btn, acc):
+            self.current_account = acc
+            self.update_body()
+
+        accounts = os.listdir("dingus/accounts")
+        body_data = []
+        for filename in accounts:
+            pk = keys.PrivateKey.from_json(filename)
+            public_key = pk.to_public_key().encode().hex()
+            address = pk.to_public_key().to_address().to_lsk32()
+            avatar = rgb_list_to_text(pk.to_public_key().to_address().to_avatar())
+            btn = attr_button(["\n"] + avatar + ["\nselect"], borders=False, on_press=lambda btn, acc=filename : select(btn, acc))
+            body_data.append(urwid.Columns([(16, btn), urwid.Text(f"\n{address}", align="center")]))
+            self.parent.emit_event("request_account", {"public_key" : pk.to_public_key().encode().hex()}, ["user_input"])
+        
+        _body = urwid.ListBox(urwid.SimpleFocusListWalker(body_data))
+        self.contents[2] = (_body, ("weight", 1))
+
+
+    async def handle_event(self, event: Event) -> None:
+        if event.name == "response_account":
+            if "token" in event.data:
+                self.account_balance = float(event.data["token"]["balance"]) / LSK
+            else:
+                self.account_balance = 0
+
+               
+        
+
+        

@@ -1,6 +1,9 @@
 LSK = 10**8
 PUB_KEY_LENGTH = 32
 ADDRESS_LENGTH = 20
+SEED_LENGTH = 32
+
+LSK32_CHARSET = "zxvcpmbn3465o978uyrtkqew2adsjhfg"
 
 EVENT_TAGS = [
     "user_input",

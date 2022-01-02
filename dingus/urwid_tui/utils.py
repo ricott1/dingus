@@ -2,8 +2,8 @@ import urwid
 import logging
 import collections
 
-WIDTH = 96
-HEIGHT = 40
+WIDTH = 64
+HEIGHT = 24
 
 PALETTE = [
     ("line", "black", "white", "standout"),
@@ -16,52 +16,6 @@ PALETTE = [
     ("yellow", "yellow", "black"),
     ("red", "light red", "black")
 ]
-
-
-class TailLogHandler(logging.Handler):
-
-    def __init__(self, log_queue):
-        logging.Handler.__init__(self)
-        self.log_queue = log_queue
-
-    def emit(self, record):
-        self.log_queue.append(self.format(record))
-
-
-class TailLogger(object):
-
-    def __init__(self, maxlen):
-        self._log_queue = collections.deque(maxlen=maxlen)
-        self._log_handler = TailLogHandler(self._log_queue)
-
-    def contents(self):
-        return '\n'.join(self._log_queue)
-
-    @property
-    def log_handler(self):
-        return self._log_handler
-
-class SelectableColumns(urwid.Columns):
-    def __init__(self, widget_list, focus_column=None, dividechars=0, on_keypress=None):
-        super().__init__(widget_list, dividechars, focus_column)
-        self.on_keypress = on_keypress
-
-    def keypress(self, size, key):
-        super().keypress(size, key)
-        if self.on_keypress and key != "enter":
-            self.on_keypress()
-
-    def focus_next(self):
-        try:
-            self.focus_position += 1
-        except ValueError:
-            pass
-
-    def focus_previous(self):
-        try:
-            self.focus_position -= 1
-        except ValueError:
-            pass
 
 
 class ButtonLabel(urwid.SelectableIcon):
@@ -143,23 +97,14 @@ def RGBA_to_RGB(r, g, b, a, background=None):
 def interpolate_colors(color1, color2, value):
     return [int(round(x + (y - x) * value)) for x, y in zip(color1, color2)]
 
-
-
-def image_to_text(img, y_offset=0, x_offset=0, background=None):
-    def pixel(x, y):
-        r, g, b, a = img.get_at((x, y))
-        if a > 0:
-            r, g, b = RGBA_to_RGB(r, g, b, a, background=background)
-            attr = f"#{r:02x}{g:02x}{b:02x}"
-            return (urwid.AttrSpec(attr, attr, colors=256), "  ")
-        return "  "
-
-    text = ["\n" * y_offset]
-    w, h = img.get_width(), img.get_height()
+def rgb_list_to_text(rgb_list: list[tuple[int]]) -> str:
+    text = []
+    w = h = int(len(rgb_list)**0.5)
     for y in range(h):
-        text.append("  " * x_offset)
         for x in range(w):
-            text.append(pixel(x, y))
+            r, g, b = rgb_list[x + y * w]
+            attr = f"#{r:02x}{g:02x}{b:02x}"
+            text.append((urwid.AttrSpec(attr, attr, colors=256), "  "))
         text.append("\n")
 
     return text

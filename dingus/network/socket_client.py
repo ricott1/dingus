@@ -28,12 +28,16 @@ class DingusClient(component.ComponentMixin, socketio.AsyncClient):
 
     async def handle_event(self, event: dict) -> None:
         if event.name == "request_block":
-            # input(event)
-            new_block = api.fetch_block(event.data["id"])
-            if "data" in new_block:
-                self.emit_event("requested_block", new_block["data"][0], ["api_response"])
-            
+            block = api.fetch_block(event.data["id"])
+            if "data" in block:
+                self.emit_event("response_block", block["data"][0], ["api_response"])
+        elif event.name == "request_account":
+            account = api.fetch_account_from_public_key(event.data["public_key"])
+            if "data" in account:
+                self.emit_event("response_account", account["data"][0], ["api_response"])
+            else:
+                self.emit_event("response_account", {}, ["api_response"])
+
     def handle_new_block(self, response: dict) -> None:
         new_block_received = response["data"][0]
         self.emit_event("new_block", new_block_received, ["service_subscription"])
-        # self.logger.info("Emitted new_block_received")

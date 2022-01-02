@@ -6,7 +6,6 @@ import dingus.urwid_tui.tui as tui
 import dingus.network.socket_client as socket
 
 
-
 class Processor(object):
     def __init__(self, logger):
         self.logger = logger
@@ -43,9 +42,6 @@ class Processor(object):
                         tasks.append(asyncio.create_task(comp.handle_event(event)))
 
                 [asyncio.create_task(comp.on_update(deltatime)) for comp in self.components]
-                # await asyncio.gather(*tasks)
-                # await asyncio.gather(*[asyncio.create_task(comp.on_update(deltatime)) for comp in self.components])
-                
                 await asyncio.sleep(deltatime)
         except (KeyboardInterrupt, RuntimeError) as e:
             print("keyboard itnerrupted", e)

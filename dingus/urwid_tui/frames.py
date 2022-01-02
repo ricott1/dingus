@@ -1,7 +1,7 @@
 import urwid
 import time
 
-from dingus.urwid_tui.utils import create_button, attr_button, image_to_text, WIDTH, HEIGHT
+from dingus.urwid_tui.utils import create_button, attr_button, WIDTH, HEIGHT
 from dingus.types.event import Event
 
 MIN_HEADER_HEIGHT = 3
@@ -12,7 +12,6 @@ FOOTER_HEIGHT = 4
 class UiFrame(urwid.Frame):
     def __init__(self, body, **kwargs):
         super().__init__(body, **kwargs)
-        self.completed = False
 
     def handle_input(self, _input: str, pressed_since: float=0) -> None:
         pass
@@ -20,7 +19,20 @@ class UiFrame(urwid.Frame):
     async def on_update(self, deltatime: float) -> None:
         pass
 
-    def handle_event(self, event: Event):
+    async def handle_event(self, event: Event):
+        pass
+
+class UiPile(urwid.Pile):
+    def __init__(self, widgets, **kwargs):
+        super().__init__(widgets, **kwargs)
+
+    def handle_input(self, _input: str, pressed_since: float=0) -> None:
+        pass
+
+    async def on_update(self, deltatime: float) -> None:
+        pass
+
+    async def handle_event(self, event: Event):
         pass
 
 class WarningFrame(UiFrame):
@@ -143,18 +155,3 @@ class EntryFrame(UiFrame):
                 self.selection = _name
         else:
             self.keypress(self.size, _input)
-
-
-class ImageFrame(UiFrame):
-    def __init__(self, _image, background_attr=None, _x_offset=2):
-        self.x_offset = _x_offset
-        self.background_attr = background_attr
-        _walker = urwid.SimpleListWalker([urwid.Text(image_to_text(
-            self.image, background_attr=self.background_attr, x_offset=self.x_offset), wrap='clip')])
-        self.listbox = urwid.ListBox(_walker)
-        super().__init__(self.listbox)
-
-    def update_image(self, **kwargs):
-        self.listbox.body = [urwid.Text(image_to_text(
-            self.image, background_attr=self.background_attr, x_offset=self.x_offset, **kwargs), wrap='clip')]
-
