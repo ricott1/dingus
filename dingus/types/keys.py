@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import os 
+import hashlib
+import pyaes
+import json
+from nacl.signing import SigningKey, VerifyKey
+from nacl.encoding import Base64Encoder, HexEncoder
 
 import dingus.constants as constants
 import dingus.utils as utils
-from nacl.signing import SigningKey, VerifyKey
-from nacl.encoding import Base64Encoder, HexEncoder
 
 
 class Address(bytes):
@@ -35,10 +38,21 @@ class PrivateKey(SigningKey):
         return utils.passphrase_to_private_key(passphrase)
     
     @classmethod
-    def from_json(cls, filename: str) -> PrivateKey:
-        with open(f"dingus/accounts/{filename}", "br") as f:
-            key_bytes = f.read()
-        return PrivateKey(key_bytes)
+    def from_json(cls, filename: str, password: str = "") -> PrivateKey:
+        with open(f"dingus/accounts/{filename}", "r") as f:
+            cipherdata = json.loads(f.read())
+        print(cipherdata)
+        ciphertext = bytes.fromhex(cipherdata["ciphertext"])
+        salt = bytes.fromhex(cipherdata["salt"])
+        iv = bytes.fromhex(cipherdata["iv"])
+        iteration_count = cipherdata["iteration_count"]
+        key = hashlib.pbkdf2_hmac('sha256', str.encode(password), salt, iteration_count)
+        
+        # Decryption with AES-256-CBC
+        decrypter = pyaes.Decrypter(pyaes.AESModeOfOperationCBC(key, iv))
+        decryptedData = decrypter.feed(ciphertext)
+        decryptedData += decrypter.feed()
+        return PrivateKey(decryptedData)
 
     def __init__(self, source) -> None:
         super().__init__(source)
@@ -46,9 +60,26 @@ class PrivateKey(SigningKey):
     def to_public_key(self) -> PublicKey:
         return PublicKey(self.verify_key._key)
     
-    def to_json(self) -> None:
-        filename = f"{self.to_public_key().to_address().hex()}.json"
-        with open(f"dingus/accounts/{filename}", "bw") as f:
-            f.write(self.encode())
+    def to_json(self, password: str = "", iteration_count: int = 1000000) -> None:
+        salt = os.urandom(8)
+        iv = os.urandom(16)
+        key = hashlib.pbkdf2_hmac('sha256', str.encode(password), salt, iteration_count)
+
+        # Encryption with AES-256-CBC
+        encrypter = pyaes.Encrypter(pyaes.AESModeOfOperationCBC(key, iv))
+        ciphertext = encrypter.feed(self.encode())
+        ciphertext += encrypter.feed()
+
+
+        cipherdata = {
+                "ciphertext": ciphertext.hex(),
+                "salt": salt.hex(),
+                "iv": iv.hex(),
+                "iteration_count": iteration_count,
+                "public_key": self.to_public_key().encode().hex()
+        }
+        filename = f"{self.to_public_key().to_address().to_lsk32()}.json"
+        with open(f"dingus/accounts/{filename}", "w") as f:
+            f.write(json.dumps(cipherdata))
 
 

@@ -13,6 +13,9 @@ class UiFrame(urwid.Frame):
     def __init__(self, body, **kwargs):
         super().__init__(body, **kwargs)
 
+    def start(self):
+        pass
+
     def handle_input(self, _input: str, pressed_since: float=0) -> None:
         pass
 
@@ -25,6 +28,9 @@ class UiFrame(urwid.Frame):
 class UiPile(urwid.Pile):
     def __init__(self, widgets, **kwargs):
         super().__init__(widgets, **kwargs)
+
+    def start(self):
+        pass
 
     def handle_input(self, _input: str, pressed_since: float=0) -> None:
         pass

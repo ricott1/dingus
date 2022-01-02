@@ -1,8 +1,10 @@
 import urwid
 import time
+import json
 import os
 import logging
 import traceback
+from typing import Callable
 
 import dingus.component as component
 import dingus.urwid_tui.frames as frames
@@ -15,8 +17,6 @@ import dingus.types.keys as keys
 
 class TUI(component.ComponentMixin, urwid.Pile):
     def __init__(self, logger) -> None:
-        self.logger = logger
-        self.events = []
         self.warning_frame = frames.WarningFrame()
         _title = urwid.BoxAdapter(frames.TitleFrame(["Dingus"]), height=12)
         self.base_header = CurrentTipHeader(self)
@@ -36,6 +36,7 @@ class TUI(component.ComponentMixin, urwid.Pile):
     @active_body.setter
     def active_body(self, _body: frames.UiFrame | frames.UiPile) -> None:
         self.contents[1] = (_body, ("weight", 1))
+        self.active_body.start()
     
     def update_active_body(self, name: str) -> None:
         if name == "quit":
@@ -49,6 +50,8 @@ class TUI(component.ComponentMixin, urwid.Pile):
         self.loop.unhandled_input = self.handle_input
         self.loop.start()
         self.event_loop.set_exception_handler(self._exception_handler)
+        for name in self.bodies:
+            self.bodies[name].start()
 
     def _exception_handler(self, loop, context):
         self.stop()
@@ -122,12 +125,11 @@ class MenuFooter(frames.UiFrame):
         self.parent = parent
         _menu = []
         opts = ("Account", "Explorer", "Quit")
-        btn_width = max(8, terminal_size()[0]//len(opts))
         for opt in opts:
             btn = create_button(opt, borders=False)
             urwid.connect_signal(btn, 'click', lambda btn, name=opt.lower(): self.parent.update_active_body(name))
             btn = urwid.AttrMap(btn, None, focus_map="line")
-            _menu.append((btn_width, urwid.LineBox(btn)))
+            _menu.append(urwid.LineBox(btn))
 
         _body = urwid.ListBox(urwid.SimpleFocusListWalker([urwid.Columns(_menu)]))
         super().__init__(_body, **kwargs)
@@ -161,10 +163,11 @@ class BlockInfo(frames.UiFrame):
 class AccountInfo(frames.UiPile):
     def __init__(self, parent, **kwargs) -> None:
         self.parent = parent
+        self.accounts = {}
         new_act_btn = create_button("New", borders=False)
-        urwid.connect_signal(new_act_btn, 'click', self.new_account)
+        urwid.connect_signal(new_act_btn, 'click', self.prompt_password)
         new_act_btn = urwid.AttrMap(new_act_btn, None, focus_map="line")
-        self.select_act_btn = create_button("Change", borders=False)
+        self.select_act_btn = create_button(f"Change ({len(self.accounts.keys())})", borders=False)
         urwid.connect_signal(self.select_act_btn, 'click', self.select_account)
         select_act_btn = urwid.AttrMap(self.select_act_btn, None, focus_map="line")
         _btns = urwid.Columns([urwid.LineBox(select_act_btn), urwid.LineBox(new_act_btn)])
@@ -173,28 +176,49 @@ class AccountInfo(frames.UiPile):
         _widgets = [("pack", _header), ("pack", _btns), urwid.ListBox(urwid.SimpleFocusListWalker([]))]
         super().__init__(_widgets, **kwargs)
         self.current_account = None
-        self.account_balance = 0
-        self.update_body()
-
-    def update_body(self):
-        accounts = os.listdir("dingus/accounts")
-        self.select_act_btn.disabled = bool(len(accounts) <= 1)
         
-        if not accounts:
-            header_data = urwid.Text("No account data, create a new one first.", align= "center")
-            body_data = [urwid.Text("")]
-        elif not self.current_account:
-            self.current_account = accounts[0]
+    
+    def start(self) -> None:
+        self.update_account_data()
+        self.update_body()
+        
+    def update_account_data(self) -> None:
+        accounts = os.listdir("dingus/accounts")
+        for filename in accounts:
+            try:
+                address = filename.split(".")[0]
+                if address in self.accounts:
+                    continue
+                with open(f"dingus/accounts/{filename}", "r") as f:
+                    data = json.loads(f.read())
+                public_key = keys.PublicKey(bytes.fromhex(data["public_key"]))
+            except Exception as e:
+                print(e)
+                continue
+
+            self.accounts[address] = {
+                "balance": 0,
+                "public_key": public_key
+            }
+            self.parent.emit_event("request_account", {"address" : address}, ["user_input"])
+           
+    def update_body(self) -> None:
+        self.select_act_btn.set_label(f"Change ({len(self.accounts.keys())})")
+        self.select_act_btn.disabled = bool(len(self.accounts) == 0)
+        header_data = urwid.Text("No account data, create a new one first.", align= "center")
+        body_data = [urwid.Text("")]
+        if self.accounts and not self.current_account:
+            self.current_account = list(self.accounts.keys())[0]
 
         if self.current_account:
             try:
-                pk = keys.PrivateKey.from_json(self.current_account)
-                public_key = pk.to_public_key().encode().hex()
-                address = pk.to_public_key().to_address().to_lsk32()
-                avatar = rgb_list_to_text(pk.to_public_key().to_address().to_avatar())
-                btn = attr_button(["\n"] + avatar + ["\ncopy"], borders=False, on_press=lambda btn : utils.copy_to_clipboard(address))
-                header_data = urwid.Columns([(16, btn), urwid.Text(f"\n{address}\n\n{self.account_balance} LSK", align="center")])
-                body_data = [urwid.Text(f"Public key: {public_key}")]
+                public_key = self.accounts[self.current_account]["public_key"]
+                avatar = rgb_list_to_text(public_key.to_address().to_avatar())
+                btn = attr_button(["\n"] + avatar + ["\ncopy"], borders=False, on_press=lambda btn : utils.copy_to_clipboard(self.current_account))
+                balance = float(self.accounts[self.current_account]["balance"]) / LSK
+                header_data = urwid.Columns([(16, btn), urwid.Text(f"\n\n{self.current_account}\n\n{balance} LSK", align="center")])
+                body_data = [urwid.Text(f"Public key: {public_key.encode().hex()}")]
+                self.parent.emit_event("request_account", {"address" : self.current_account}, ["user_input"])
             except Exception as e:
                 input(e)
                 header_data = urwid.Text("Invalid account file.", align= "center")
@@ -204,9 +228,16 @@ class AccountInfo(frames.UiPile):
         self.contents[0] = (urwid.LineBox(header_data), ("pack", None))
         self.contents[2] = (_body, ("weight", 1))
 
-    def new_account(self, btn) -> None:
+    def prompt_password(self, btn) -> None:
+        bottom_w = self.contents[2][0]
+        top_w = PasswordPrompt(self.new_account, self.update_body)
+        _body = urwid.Overlay(top_w, bottom_w, "center", 20, "middle", 12)
+        self.contents[2] = (_body, ("weight", 1))
+
+    def new_account(self, password: str) -> None:
         sk = utils.random_private_key()
-        sk.to_json()
+        sk.to_json(password)
+        self.update_account_data()
         self.update_body()
     
     def select_account(self, btn) -> None:
@@ -216,27 +247,56 @@ class AccountInfo(frames.UiPile):
 
         accounts = os.listdir("dingus/accounts")
         body_data = []
-        for filename in accounts:
-            pk = keys.PrivateKey.from_json(filename)
-            public_key = pk.to_public_key().encode().hex()
-            address = pk.to_public_key().to_address().to_lsk32()
-            avatar = rgb_list_to_text(pk.to_public_key().to_address().to_avatar())
-            btn = attr_button(["\n"] + avatar + ["\nselect"], borders=False, on_press=lambda btn, acc=filename : select(btn, acc))
+        for address in self.accounts:
+            public_key = self.accounts[address]["public_key"]
+            avatar = rgb_list_to_text(public_key.to_address().to_avatar())
+            btn = attr_button(["\n"] + avatar + ["\nselect"], borders=False, on_press=lambda btn, acc=address : select(btn, acc))
             body_data.append(urwid.Columns([(16, btn), urwid.Text(f"\n{address}", align="center")]))
-            self.parent.emit_event("request_account", {"public_key" : pk.to_public_key().encode().hex()}, ["user_input"])
+            self.parent.emit_event("request_account", {"address" : address}, ["user_input"])
         
         _body = urwid.ListBox(urwid.SimpleFocusListWalker(body_data))
         self.contents[2] = (_body, ("weight", 1))
 
 
     async def handle_event(self, event: Event) -> None:
-        if event.name == "response_account":
+        if event.name == "response_account" and "summary" in event.data:
+            acc = event.data["summary"]["address"]
+            self.accounts[acc]["public_key"] = keys.PublicKey(bytes.fromhex(event.data["summary"]["publicKey"]))
             if "token" in event.data:
-                self.account_balance = float(event.data["token"]["balance"]) / LSK
-            else:
-                self.account_balance = 0
+                self.accounts[acc]["balance"] = int(event.data["token"]["balance"])
 
                
-        
+class PasswordPrompt(frames.UiPile):
+    def __init__(self, ok_callback: Callable[[str], None], cancel_callback: Callable[[], None]):
+        self.ok_callback = ok_callback
+        self.cancel_callback = cancel_callback
+        # Header
+        header_text = urwid.Text(('banner', 'Password'), align = 'center')
+        header = urwid.AttrMap(header_text, 'banner')
 
-        
+        # Body
+        self.pwd_edit = urwid.Edit("$ ", mask="*")
+        body_filler = urwid.Filler(self.pwd_edit, valign = 'top')
+        body_padding = urwid.Padding(
+            body_filler,
+            left = 1,
+            right = 1
+        )
+        body = urwid.LineBox(body_padding)
+
+        # Footer
+        footer = urwid.Columns([
+            urwid.LineBox(attr_button("OK", on_press = self.ok, borders=False)), 
+            urwid.LineBox(attr_button("Cancel", on_press = self.cancel, borders=False))
+        ])
+
+        _widgets = [("pack", header), body, ("pack", footer)]
+        super().__init__(_widgets)
+
+    def ok(self, btn):
+        pwd = self.pwd_edit.get_edit_text()
+        self.ok_callback(pwd)
+    
+    def cancel(self, btn):
+        self.cancel_callback()
+

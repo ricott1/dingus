@@ -24,7 +24,7 @@ class ButtonLabel(urwid.SelectableIcon):
         set_text is invoked by Button.set_label
         '''
         self.__super.set_text(label)
-        self._cursor_position = len(label) + 1
+        self._cursor_position = -1
 
 
 class MyButton(urwid.Button):

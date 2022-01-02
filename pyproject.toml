@@ -14,6 +14,7 @@ protobuf = "^3.19.1"
 pyperclip = "^1.8.2"
 google = "^3.0.0"
 python-socketio = {extras = ["asyncio_client"], version = "^5.5.0"}
+pyaes = "^1.6.1"
 
 [tool.poetry.dev-dependencies]
 
