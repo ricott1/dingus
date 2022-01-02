@@ -231,8 +231,9 @@ class AccountInfo(frames.UiPile):
     def prompt_password(self, btn) -> None:
         bottom_w = self.contents[2][0]
         top_w = PasswordPrompt(self.new_account, self.update_body)
-        _body = urwid.Overlay(top_w, bottom_w, "center", 32, ('relative', 0.4), 12)
+        _body = urwid.Overlay(top_w, bottom_w, "center", 32, ("relative", 0.5), 12)
         self.contents[2] = (_body, ("weight", 1))
+        self.focus_position = 2
 
     def new_account(self, password: str) -> None:
         sk = utils.random_private_key()
@@ -291,7 +292,7 @@ class PasswordPrompt(frames.UiPile):
         ])
 
         _widgets = [("pack", header), body, ("pack", footer)]
-        super().__init__(_widgets)
+        super().__init__(_widgets, focus_item=2)
 
     def ok(self, btn):
         pwd = self.pwd_edit.get_edit_text()
