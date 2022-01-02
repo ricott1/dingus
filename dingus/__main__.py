@@ -1,14 +1,11 @@
-import dingus.processor as processor
+from dingus.processor import Processor
 import dingus.utils as utils
 from dingus.types.keys import PrivateKey
 
 import logging
-import os
+import os       
 
-
-        
-
-if __name__ == "__main__":
+def start():
     logger = logging.getLogger(__name__)
     os.remove("dingus.log")
     logging.basicConfig(filename = "dingus.log", level=logging.DEBUG) 
@@ -18,5 +15,5 @@ if __name__ == "__main__":
     # # sk.to_json()
     # print(sk.to_public_key().to_address())
     # print(sk.to_public_key().to_address().to_avatar())
-    processor = processor.Processor(logger)
+    processor = Processor(logger)
     

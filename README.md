@@ -4,10 +4,10 @@ Lisk wallet in python
 ## Install dependencies
 
 Use `python3.10`. 
-Probably a lot of stuff, like:
+Using poetry:
 
-`pip install urwid "python-socketio[asyncio_client]" protobuf requests pynacl`
+`poetry install`
 
 ## Run
 
-`python main.py`
+`poetry run dingus`

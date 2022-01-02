@@ -12,8 +12,13 @@ requests = "^2.26.0"
 PyNaCl = "^1.4.0"
 protobuf = "^3.19.1"
 pyperclip = "^1.8.2"
+google = "^3.0.0"
+python-socketio = {extras = ["asyncio_client"], version = "^5.5.0"}
 
 [tool.poetry.dev-dependencies]
+
+[tool.poetry.scripts]
+dingus = "dingus.__main__:start"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
