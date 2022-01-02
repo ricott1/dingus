@@ -57,9 +57,8 @@ class TUI(component.ComponentMixin, urwid.Pile):
         self.stop()
         exc = context.get('exception')
         print(traceback.format_exc())
-        print(type(exc), exc, exc.__traceback__)
- 
         if exc:
+            print(type(exc), exc, exc.__traceback__)
             if not isinstance(exc, urwid.ExitMainLoop):
                 # Store the exc_info so we can re-raise after the loop stops
                 urwid.compat.reraise(type(exc), exc, exc.__traceback__)
@@ -217,7 +216,9 @@ class AccountInfo(frames.UiPile):
                 btn = attr_button(["\n"] + avatar + ["\ncopy"], borders=False, on_press=lambda btn : utils.copy_to_clipboard(self.current_account))
                 balance = float(self.accounts[self.current_account]["balance"]) / LSK
                 header_data = urwid.Columns([(16, btn), urwid.Text(f"\n\n{self.current_account}\n\n{balance} LSK", align="center")])
-                body_data = [urwid.Text(f"Public key: {public_key.encode().hex()}")]
+                
+                send_btn = attr_button(["Send LSK"], borders=False, on_press=self.prompt_send_lsk)
+                body_data = [urwid.LineBox(send_btn)]
                 self.parent.emit_event("request_account", {"address" : self.current_account}, ["user_input"])
             except Exception as e:
                 input(e)
@@ -228,10 +229,21 @@ class AccountInfo(frames.UiPile):
         self.contents[0] = (urwid.LineBox(header_data), ("pack", None))
         self.contents[2] = (_body, ("weight", 1))
 
+    def prompt_send_lsk(self, btn) -> None:
+        bottom_w = self.contents[2][0]
+        top_w = SendPrompt(self.send_lsk, self.update_body)
+        _body = urwid.Overlay(top_w, bottom_w, "center", 60, ("relative", 0.5), 16)
+        self.contents[2] = (_body, ("weight", 1))
+        self.focus_position = 2
+    
+    def send_lsk(self, params: dict) -> None:
+        print(params)
+        input()
+
     def prompt_password(self, btn) -> None:
         bottom_w = self.contents[2][0]
         top_w = PasswordPrompt(self.new_account, self.update_body)
-        _body = urwid.Overlay(top_w, bottom_w, "center", 32, ("relative", 0.5), 12)
+        _body = urwid.Overlay(top_w, bottom_w, "center", 36, ("relative", 0.5), 10)
         self.contents[2] = (_body, ("weight", 1))
         self.focus_position = 2
 
@@ -267,15 +279,14 @@ class AccountInfo(frames.UiPile):
                 self.accounts[acc]["balance"] = int(event.data["token"]["balance"])
 
                
-class PasswordPrompt(frames.UiPile):
+class PasswordPrompt(urwid.LineBox):
     def __init__(self, ok_callback: Callable[[str], None], cancel_callback: Callable[[], None]):
         self.ok_callback = ok_callback
         self.cancel_callback = cancel_callback
-        # Header
+
         header_text = urwid.Text(('banner', 'Password'), align = 'center')
         header = urwid.AttrMap(header_text, 'banner')
 
-        # Body
         self.pwd_edit = urwid.Edit("$ ", mask="*")
         body_filler = urwid.Filler(self.pwd_edit, valign = 'top')
         body_padding = urwid.Padding(
@@ -285,18 +296,65 @@ class PasswordPrompt(frames.UiPile):
         )
         body = urwid.LineBox(body_padding)
 
-        # Footer
         footer = urwid.Columns([
             urwid.LineBox(attr_button("OK", on_press = self.ok, borders=False)), 
             urwid.LineBox(attr_button("Cancel", on_press = self.cancel, borders=False))
         ])
 
         _widgets = [("pack", header), body, ("pack", footer)]
-        super().__init__(_widgets, focus_item=2)
+        super().__init__(frames.UiPile(_widgets, focus_item=2))
 
     def ok(self, btn):
         pwd = self.pwd_edit.get_edit_text()
         self.ok_callback(pwd)
+    
+    def cancel(self, btn):
+        self.cancel_callback()
+
+
+class SendPrompt(urwid.LineBox):
+    def __init__(self, ok_callback: Callable[[dict], None], cancel_callback: Callable[[], None]):
+        self.ok_callback = ok_callback
+        self.cancel_callback = cancel_callback
+
+        header_text = urwid.Text(('banner', 'Send'), align = 'center')
+        header = urwid.AttrMap(header_text, 'banner')
+
+        self.recipient_edit = urwid.Edit("Recipient: ")
+        self.amount_edit = urwid.IntEdit("Amount: ")
+        self.data_edit = urwid.Edit("Data: ")
+        self.pwd_edit = urwid.Edit("Password: ", mask="*")
+        params = urwid.ListBox(urwid.SimpleFocusListWalker([
+            self.recipient_edit,
+            urwid.Text(""),
+            self.amount_edit,
+            urwid.Text(""),
+            self.data_edit,
+            urwid.Text(""),
+            self.pwd_edit
+        ]))
+        body = urwid.LineBox(params)
+
+        footer = urwid.Columns([
+            urwid.LineBox(attr_button("OK", on_press = self.ok, borders=False)), 
+            urwid.LineBox(attr_button("Cancel", on_press = self.cancel, borders=False))
+        ])
+
+        _widgets = [("pack", header), body, ("pack", footer)]
+        super().__init__(frames.UiPile(_widgets, focus_item=2))
+
+    def ok(self, btn):
+        params = {
+            "recipient": self.recipient_edit.get_edit_text(),
+            "amount": self.amount_edit.value(),
+            "data": self.data_edit.get_edit_text(),
+            "pwd": self.pwd_edit.get_edit_text()
+        }
+
+        if not utils.validate_lisk32_address(params["recipient"]):
+            self.cancel(btn)
+        else:
+            self.ok_callback(params)
     
     def cancel(self, btn):
         self.cancel_callback()

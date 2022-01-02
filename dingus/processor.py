@@ -44,7 +44,7 @@ class Processor(object):
                 [asyncio.create_task(comp.on_update(deltatime)) for comp in self.components]
                 await asyncio.sleep(deltatime)
         except (KeyboardInterrupt, RuntimeError) as e:
-            print("keyboard itnerrupted", e)
+            print("keyboard interrupted", e)
         finally:
             self.stop()
             

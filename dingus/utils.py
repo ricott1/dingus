@@ -4,7 +4,7 @@ import os
 import pyperclip
 
 import dingus.types.keys as keys
-from dingus.constants import ADDRESS_LENGTH, PUB_KEY_LENGTH, SEED_LENGTH, LSK32_CHARSET
+from dingus.constants import ADDRESS_LENGTH, PUB_KEY_LENGTH, SEED_LENGTH, LISK32_CHARSET, DEFAULT_LISK32_ADDRESS_PREFIX, LISK32_ADDRESS_LENGTH
 
 
 def passphrase_to_private_key(passphrase: str) -> keys.PrivateKey:
@@ -72,7 +72,7 @@ def convert_uint_array(uint_array: list[int], from_bits: int, to_bits: int) -> l
     return result
 
 def convert_uint5_to_base32(uint5_array: list[int]) -> str:
-    return "".join([LSK32_CHARSET[val] for val in uint5_array])
+    return "".join([LISK32_CHARSET[val] for val in uint5_array])
 
 
 def polymod(uint5_array: list[int])-> int:
@@ -107,4 +107,21 @@ def verify_lisk32_checksum(integer_sequence: list[int]) -> bool:
 def address_to_lisk32(address: bytes) -> str:
     uint5_address = convert_uint_array(address, 8, 5)
     uint5_checksum = create_checksum(uint5_address)
-    return "lsk" + convert_uint5_to_base32(uint5_address + uint5_checksum)
+    return DEFAULT_LISK32_ADDRESS_PREFIX + convert_uint5_to_base32(uint5_address + uint5_checksum)
+
+def validate_lisk32_address(address: str, prefix = DEFAULT_LISK32_ADDRESS_PREFIX) -> bool:
+    if len(address) != LISK32_ADDRESS_LENGTH:
+        return False
+
+    if not address.startswith(DEFAULT_LISK32_ADDRESS_PREFIX):
+        return False
+
+    address_substring_array = address[3:]
+
+    for char in address_substring_array:
+        if char not in LISK32_CHARSET:
+            return False
+
+    integer_sequence = [LISK32_CHARSET.find(char) for char in address_substring_array]
+
+    return verify_lisk32_checksum(integer_sequence)
