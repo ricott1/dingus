@@ -20,7 +20,7 @@ def fetch_account_from_public_key(public_key: bytes, protocol: str = "https", en
     r = requests.get(url)
     return r.json()
 
-def send_tx(tx: str, protocol: str = "http", endpoint: str = "localhost", port: int = 4000) -> dict:
+def send_tx(tx: str, protocol: str = "https", endpoint: str = "service.lisk.com", port: int = 443) -> dict:
     url = f'{protocol}://{endpoint}:{port}/api/transactions'
     headers = {'content-type': 'application/json', 'Accept-Charset': 'UTF-8'}
     r = requests.post(url, data=tx, headers=headers)

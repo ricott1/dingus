@@ -116,7 +116,7 @@ def validate_lisk32_address(address: str, prefix = DEFAULT_LISK32_ADDRESS_PREFIX
     if not address.startswith(DEFAULT_LISK32_ADDRESS_PREFIX):
         return False
 
-    address_substring_array = address[3:]
+    address_substring_array = address[len(DEFAULT_LISK32_ADDRESS_PREFIX):]
 
     for char in address_substring_array:
         if char not in LISK32_CHARSET:
@@ -125,3 +125,13 @@ def validate_lisk32_address(address: str, prefix = DEFAULT_LISK32_ADDRESS_PREFIX
     integer_sequence = [LISK32_CHARSET.find(char) for char in address_substring_array]
 
     return verify_lisk32_checksum(integer_sequence)
+
+def get_address_from_lisk32_address(base32_address: str) -> bytes:
+    if not validate_lisk32_address(base32_address, DEFAULT_LISK32_ADDRESS_PREFIX):
+        return b""
+    
+    # Ignore lsk prefix and checksum
+    address_substring_array = base32_address[len(DEFAULT_LISK32_ADDRESS_PREFIX):-6]
+    integer_sequence = [LISK32_CHARSET.find(char) for char in address_substring_array]
+
+    return bytes(convert_uint_array(integer_sequence, 5, 8))

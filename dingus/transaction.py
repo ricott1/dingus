@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-import dingus.schemas as schemas
+import dingus.codec as codec
 import dingus.utils as utils
 import dingus.network.api as api
 import dingus.constants as constants
 from dingus.constants import LSK
-from dingus.json_format import MessageToJson, MessageToDict
+from dingus.codec.json_format import MessageToJson, MessageToDict
 from google.protobuf.reflection import GeneratedProtocolMessageType
 from nacl.signing import SigningKey, VerifyKey
 
@@ -24,7 +24,7 @@ class Transaction(object):
             assert nonce >= 0, "Invalid 'nonce'."
             assert fee >= 0, "Invalid 'fee'."
         
-        self.schema = schemas.base_transaction.Transaction()
+        self.schema = codec.base_transaction.Transaction()
         self.schema.moduleID = self.MODULE_ID
         self.schema.assetID = self.ASSET_ID
         self.schema.senderPublicKey = senderPublicKey
@@ -124,7 +124,7 @@ class BalanceTransfer(Transaction):
         return BalanceTransfer(params["senderPublicKey"], params["nonce"], params["fee"], params["asset"])
 
     def __init__(self, senderPublicKey : bytes, nonce:int, fee:int, asset: dict, strict:bool = False) -> None:
-        super().__init__(senderPublicKey, nonce, fee, schemas.token_balance_transfer_asset.BalanceTransferAsset(), asset, strict)
+        super().__init__(senderPublicKey, nonce, fee, codec.token_balance_transfer_asset.BalanceTransferAsset(), asset, strict)
 
 
 if __name__ == "__main__":

@@ -7,6 +7,7 @@ import traceback
 from typing import Callable
 
 import dingus.component as component
+import dingus.transaction as transaction
 import dingus.urwid_tui.frames as frames
 from dingus.urwid_tui.utils import PALETTE, WIDTH, HEIGHT, create_button, terminal_size, attr_button, rgb_list_to_text
 from dingus.types.event import Event
@@ -197,7 +198,8 @@ class AccountInfo(frames.UiPile):
 
             self.accounts[address] = {
                 "balance": 0,
-                "public_key": public_key
+                "public_key": public_key,
+                "nonce": 0
             }
             self.parent.emit_event("request_account", {"address" : address}, ["user_input"])
            
@@ -232,13 +234,34 @@ class AccountInfo(frames.UiPile):
     def prompt_send_lsk(self, btn) -> None:
         bottom_w = self.contents[2][0]
         top_w = SendPrompt(self.send_lsk, self.update_body)
-        _body = urwid.Overlay(top_w, bottom_w, "center", 60, ("relative", 0.5), 16)
+        _body = urwid.Overlay(top_w, bottom_w, "center", 60, ("relative", 0.5), 18)
         self.contents[2] = (_body, ("weight", 1))
         self.focus_position = 2
     
     def send_lsk(self, params: dict) -> None:
-        print(params)
-        input()
+        if not utils.validate_lisk32_address(params["recipientAddress"]):
+            print("Invalid lsk address")
+            self.update_body()
+            return
+
+        tx_params = {
+            "senderPublicKey": self.accounts[self.current_account]["public_key"].encode(),
+            "nonce": self.accounts[self.current_account]["nonce"],
+            "fee": params["fee"],
+            "asset": {
+                "amount": params["amount"],
+                "recipientAddress": utils.get_address_from_lisk32_address(params["recipientAddress"]),
+                "data": params["data"]
+            }   
+        }
+        try:
+            trs = transaction.BalanceTransfer.fromDict(tx_params)
+            
+            # trs.sign(private_key)
+            print(trs)
+            input()
+        finally:
+            self.update_body()
 
     def prompt_password(self, btn) -> None:
         bottom_w = self.contents[2][0]
@@ -277,6 +300,8 @@ class AccountInfo(frames.UiPile):
             self.accounts[acc]["public_key"] = keys.PublicKey(bytes.fromhex(event.data["summary"]["publicKey"]))
             if "token" in event.data:
                 self.accounts[acc]["balance"] = int(event.data["token"]["balance"])
+            if "sequence" in event.data:
+                self.accounts[acc]["nonce"] = int(event.data["sequence"]["nonce"])
 
                
 class PasswordPrompt(urwid.LineBox):
@@ -323,6 +348,7 @@ class SendPrompt(urwid.LineBox):
         self.recipient_edit = urwid.Edit("Recipient: ")
         self.amount_edit = urwid.IntEdit("Amount: ")
         self.data_edit = urwid.Edit("Data: ")
+        self.fee_edit = urwid.IntEdit("Fee: ", default = int(0.5 * LSK))
         self.pwd_edit = urwid.Edit("Password: ", mask="*")
         params = urwid.ListBox(urwid.SimpleFocusListWalker([
             self.recipient_edit,
@@ -330,6 +356,8 @@ class SendPrompt(urwid.LineBox):
             self.amount_edit,
             urwid.Text(""),
             self.data_edit,
+            urwid.Text(""),
+            self.fee_edit,
             urwid.Text(""),
             self.pwd_edit
         ]))
@@ -345,16 +373,14 @@ class SendPrompt(urwid.LineBox):
 
     def ok(self, btn):
         params = {
-            "recipient": self.recipient_edit.get_edit_text(),
+            "recipientAddress": self.recipient_edit.get_edit_text(),
             "amount": self.amount_edit.value(),
             "data": self.data_edit.get_edit_text(),
+            "fee": self.fee_edit.value(),
             "pwd": self.pwd_edit.get_edit_text()
         }
 
-        if not utils.validate_lisk32_address(params["recipient"]):
-            self.cancel(btn)
-        else:
-            self.ok_callback(params)
+        self.ok_callback(params)
     
     def cancel(self, btn):
         self.cancel_callback()
