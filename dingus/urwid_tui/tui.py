@@ -326,12 +326,9 @@ class AccountInfo(frames.UiPile):
             filename = self.current_account + ".json"
             private_key = keys.PrivateKey.from_json(filename, params["password"])
             trs.sign(private_key)
-            print(trs)
-            input()
             trs.send()
         except Exception as e:
             print(e)
-            input()
         finally:
             self.update_body()
 

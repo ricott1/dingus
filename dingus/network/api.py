@@ -30,8 +30,6 @@ def send_tx(hex_trs: str) -> dict:
     url = f'{endpoint}/api/v2/transactions?transaction={hex_trs}'
     headers = {'content-type': 'application/json', 'Accept-Charset': 'UTF-8'}
     r = requests.post(url, headers=headers)
-    print(hex_trs)
-    input(r.json())
     return r.json()
 
 def network_status() -> dict:
