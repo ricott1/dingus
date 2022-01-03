@@ -15,7 +15,7 @@ import dingus.types.keys as keys
 
 
 class TUI(component.ComponentMixin, urwid.Pile):
-    def __init__(self, logger) -> None:
+    def __init__(self) -> None:
         self.warning_frame = frames.WarningFrame()
         _title = urwid.BoxAdapter(frames.TitleFrame(["Dingus"]), height=12)
         self.base_header = CurrentTipHeader(self)
@@ -28,7 +28,7 @@ class TUI(component.ComponentMixin, urwid.Pile):
 
         self.base_footer = MenuFooter(self)
         _footer = urwid.BoxAdapter(self.base_footer, height=3)
-        super().__init__(logger, [("pack", _header), self.bodies["explorer"], ("pack", _footer)])
+        super().__init__([("pack", _header), self.bodies["explorer"], ("pack", _footer)])
 
     @property
     def active_body(self) -> frames.UiFrame | frames.UiPile:
@@ -240,13 +240,13 @@ class AccountInfo(frames.UiPile):
                 utils.copy_to_clipboard(self.current_account)
         
     def update_account_data(self) -> None:
-        accounts = os.listdir("dingus/accounts")
+        accounts = os.listdir(os.environ["DINGUS_ACCOUNTS_PATH"])
         for filename in accounts:
             try:
                 address = filename.split(".")[0]
                 if address in self.accounts:
                     continue
-                with open(f"dingus/accounts/{filename}", "r") as f:
+                with open(f"{os.environ['DINGUS_ACCOUNTS_PATH']}/{filename}", "r") as f:
                     data = json.loads(f.read())
                 public_key = keys.PublicKey(bytes.fromhex(data["public_key"]))
             except Exception as e:

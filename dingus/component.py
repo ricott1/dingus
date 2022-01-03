@@ -4,8 +4,7 @@ import asyncio
 from dingus.types.event import Event
 
 class ComponentMixin(object):
-    def __init__(self, logger: logging.Logger, *args, priority=0, **kwargs) -> None:
-        self.logger = logger
+    def __init__(self, *args, priority=0, **kwargs) -> None:
         self.events = []
         self.priority = priority
         super().__init__(*args, **kwargs)
@@ -31,7 +30,7 @@ class ComponentMixin(object):
     
     def emit_event(self, name: str, data: dict, tags: list = []) -> None:
         event = Event(name, data, tags)
-        self.logger.info(f"Emitting event: {event.name}")
+        logging.info(f"Emitting event: {event.name}")
         self.events.append(event)
 
     def clear_events(self) -> None:

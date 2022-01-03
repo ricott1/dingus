@@ -39,7 +39,7 @@ class PrivateKey(SigningKey):
     
     @classmethod
     def from_json(cls, filename: str, password: str = "") -> PrivateKey:
-        with open(f"dingus/accounts/{filename}", "r") as f:
+        with open(f"{os.environ['DINGUS_ACCOUNTS_PATH']}/{filename}", "r") as f:
             cipherdata = json.loads(f.read())
     
         ciphertext = bytes.fromhex(cipherdata["ciphertext"])
@@ -79,7 +79,7 @@ class PrivateKey(SigningKey):
                 "public_key": self.to_public_key().encode().hex()
         }
         filename = f"{self.to_public_key().to_address().to_lsk32()}.json"
-        with open(f"dingus/accounts/{filename}", "w") as f:
+        with open(f"{os.environ['DINGUS_ACCOUNTS_PATH']}/{filename}", "w") as f:
             f.write(json.dumps(cipherdata))
 
 

@@ -36,7 +36,7 @@ class DingusClient(component.ComponentMixin, socketio.AsyncClient):
         if self.connected:
             logging.info("Disconnecting Dingus socket client")
             try:
-                asyncio.run(self.disconnect())
+                asyncio.create_task(self.disconnect())
             except Exception as e:
                 print(e)
 
@@ -63,7 +63,7 @@ class DingusClient(component.ComponentMixin, socketio.AsyncClient):
             logging.info(f"Subscribe API event {name}: {response['data']}")
     
     async def on_update(self, deltatime: float) -> None:
-        if time.time() - self.last_update_time > 0.5 * int(os.environ["DINGUS_BLOCK_TIME"]):
+        if time.time() - self.last_update_time > 0.9 * int(os.environ["DINGUS_BLOCK_TIME"]):
             status = api.network_status()
             self.emit_event("network_status_update", status, ["service_subscription"])
             self.last_update_time = status["meta"]["lastUpdate"]
