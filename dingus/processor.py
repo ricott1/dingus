@@ -27,8 +27,7 @@ class Processor(object):
         sys.exit(0)
 
     async def start(self) -> None:
-        # await asyncio.gather(*[asyncio.create_task(comp.start()) for comp in self.components])
-        [asyncio.create_task(comp.start()) for comp in self.components]
+        await asyncio.gather(*[asyncio.create_task(comp.start()) for comp in self.components])
         deltatime = 0.02
         try:
             while True:

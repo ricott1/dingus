@@ -1,14 +1,12 @@
 import urwid
-import time
 import json
 import os
-import logging
 import traceback
-from typing import Callable
 
 import dingus.component as component
 import dingus.transaction as transaction
 import dingus.urwid_tui.frames as frames
+import dingus.urwid_tui.prompts as prompts
 from dingus.urwid_tui.utils import PALETTE, WIDTH, HEIGHT, create_button, terminal_size, attr_button, rgb_list_to_text
 from dingus.types.event import Event
 import dingus.utils as utils
@@ -21,7 +19,7 @@ class TUI(component.ComponentMixin, urwid.Pile):
         self.warning_frame = frames.WarningFrame()
         _title = urwid.BoxAdapter(frames.TitleFrame(["Dingus"]), height=12)
         self.base_header = CurrentTipHeader(self)
-        _header = urwid.LineBox(urwid.BoxAdapter(self.base_header, height=5), title = "Dingus")
+        _header = urwid.LineBox(urwid.BoxAdapter(self.base_header, height=4), title = "Dingus")
         
         self.bodies = {
             "account" : AccountInfo(self),
@@ -58,7 +56,7 @@ class TUI(component.ComponentMixin, urwid.Pile):
     def _exception_handler(self, loop, context):
         self.stop()
         exc = context.get('exception')
-        print(traceback.format_exc())
+        print("Traceback: ", traceback.format_exc())
         if exc:
             print(type(exc), exc, exc.__traceback__)
             if not isinstance(exc, urwid.ExitMainLoop):
@@ -100,10 +98,6 @@ class TUI(component.ComponentMixin, urwid.Pile):
         else:
             if self.active_body is self.warning_frame:
                 self.active_body = self.suspended_body
-            if hasattr(self.base_header, "on_update"):
-                await self.base_header.on_update(_deltatime)
-            if hasattr(self.active_body, "on_update"):
-                await self.active_body.on_update(_deltatime)
     
 
 class CurrentTipHeader(urwid.ListBox):
@@ -116,7 +110,7 @@ class CurrentTipHeader(urwid.ListBox):
         if "data" not in data:
             return
 
-        text = f"Current tip @ height {data['data']['height']}"
+        text = f"Current tip\nheight {data['data']['height']}"
         tip_btn = attr_button(
             text, 
             borders=False,
@@ -127,7 +121,7 @@ class CurrentTipHeader(urwid.ListBox):
             )
         )
        
-        text = f"Finalized @ height {data['data']['finalizedHeight']}"
+        text = f"Last finalized\nheight {data['data']['finalizedHeight']}"
         finalized_btn = attr_button(
             text, 
             borders=False,
@@ -139,11 +133,10 @@ class CurrentTipHeader(urwid.ListBox):
         )
         
         self.body[:] = [
-            urwid.Text(""), 
-            tip_btn, 
-            urwid.Text(""), 
-            finalized_btn, 
-            urwid.Text("")
+            urwid.Columns([
+                    urwid.LineBox(finalized_btn), 
+                    urwid.LineBox(tip_btn) 
+            ])
         ]
     
     async def handle_event(self, event: Event) -> None:
@@ -298,7 +291,7 @@ class AccountInfo(frames.UiPile):
 
     def prompt_send_lsk(self, btn = None) -> None:
         bottom_w = self.contents[2][0]
-        top_w = SendPrompt(self.send_lsk, self.update_body)
+        top_w = prompts.SendPrompt(self.send_lsk, self.update_body)
         _body = urwid.Overlay(top_w, bottom_w, "center", 60, ("relative", 0.5), 18)
         self.contents[0] = (urwid.WidgetDisable(self.contents[0][0]), ("pack", None))
         self.contents[1] = (urwid.WidgetDisable(self.contents[1][0]), ("pack", None))
@@ -334,7 +327,7 @@ class AccountInfo(frames.UiPile):
 
     def prompt_password(self, btn = None) -> None:
         bottom_w = urwid.WidgetDisable(self.contents[2][0])
-        top_w = PasswordPrompt(self.new_account, self.update_body)
+        top_w = prompts.PasswordPrompt(self.new_account, self.update_body)
         _body = urwid.Overlay(top_w, bottom_w, "center", 36, ("relative", 0.5), 10)
         self.contents[0] = (urwid.WidgetDisable(self.contents[0][0]), ("pack", None))
         self.contents[1] = (urwid.WidgetDisable(self.contents[1][0]), ("pack", None))
@@ -379,84 +372,4 @@ class AccountInfo(frames.UiPile):
                 self.accounts[acc]["nonce"] = int(event.data["sequence"]["nonce"])
 
                
-class PasswordPrompt(urwid.LineBox):
-    def __init__(self, ok_callback: Callable[[str], None], cancel_callback: Callable[[], None]):
-        self.ok_callback = ok_callback
-        self.cancel_callback = cancel_callback
-
-        header_text = urwid.Text(('banner', 'Password'), align = 'center')
-        header = urwid.AttrMap(header_text, 'banner')
-
-        self.pwd_edit = urwid.Edit("$ ", mask="*")
-        body_filler = urwid.Filler(self.pwd_edit, valign = 'top')
-        body_padding = urwid.Padding(
-            body_filler,
-            left = 1,
-            right = 1
-        )
-        body = urwid.LineBox(body_padding)
-
-        footer = urwid.Columns([
-            urwid.LineBox(attr_button("OK", on_press = self.ok, borders=False)), 
-            urwid.LineBox(attr_button("Cancel", on_press = self.cancel, borders=False))
-        ])
-
-        _widgets = [("pack", header), body, ("pack", footer)]
-        super().__init__(frames.UiPile(_widgets, focus_item=2))
-
-    def ok(self, btn):
-        pwd = self.pwd_edit.get_edit_text()
-        self.ok_callback(pwd)
-    
-    def cancel(self, btn):
-        self.cancel_callback()
-
-
-class SendPrompt(urwid.LineBox):
-    def __init__(self, ok_callback: Callable[[dict], None], cancel_callback: Callable[[], None]):
-        self.ok_callback = ok_callback
-        self.cancel_callback = cancel_callback
-
-        header_text = urwid.Text(('banner', 'Send'), align = 'center')
-        header = urwid.AttrMap(header_text, 'banner')
-
-        self.recipient_edit = urwid.Edit("Recipient: ")
-        self.amount_edit = urwid.IntEdit("Amount: ")
-        self.data_edit = urwid.Edit("Data: ")
-        self.fee_edit = urwid.IntEdit("Fee: ", default = int(0.5 * LSK))
-        self.pwd_edit = urwid.Edit("Password: ", mask="*")
-        params = urwid.ListBox(urwid.SimpleFocusListWalker([
-            self.recipient_edit,
-            urwid.Text(""),
-            self.amount_edit,
-            urwid.Text(""),
-            self.data_edit,
-            urwid.Text(""),
-            self.fee_edit,
-            urwid.Text(""),
-            self.pwd_edit
-        ]))
-        body = urwid.LineBox(params)
-
-        footer = urwid.Columns([
-            urwid.LineBox(attr_button("OK", on_press = self.ok, borders=False)), 
-            urwid.LineBox(attr_button("Cancel", on_press = self.cancel, borders=False))
-        ])
-
-        _widgets = [("pack", header), body, ("pack", footer)]
-        super().__init__(frames.UiPile(_widgets, focus_item=2))
-
-    def ok(self, btn):
-        params = {
-            "recipientAddress": self.recipient_edit.get_edit_text(),
-            "amount": self.amount_edit.value(),
-            "data": self.data_edit.get_edit_text(),
-            "fee": self.fee_edit.value(),
-            "password": self.pwd_edit.get_edit_text()
-        }
-
-        self.ok_callback(params)
-    
-    def cancel(self, btn):
-        self.cancel_callback()
 

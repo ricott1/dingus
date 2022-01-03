@@ -2,6 +2,7 @@ import socketio
 import asyncio
 import logging
 import os
+import time
 import dingus.network.api as api
 import dingus.component as component
 from dingus.network.constants import SOCKET_ENDPOINTS
@@ -28,6 +29,8 @@ class DingusClient(component.ComponentMixin, socketio.AsyncClient):
         status = api.network_status()
         self.emit_event("network_status_update", status, ["service_subscription"])
         os.environ["DINGUS_NETWORK_ID"] = status["data"]["networkIdentifier"]
+        os.environ["DINGUS_BLOCK_TIME"] = str(status["data"]["blockTime"])
+        self.last_update_time = status["meta"]["lastUpdate"]
         
     def stop(self) -> None:
         if self.connected:
@@ -53,7 +56,14 @@ class DingusClient(component.ComponentMixin, socketio.AsyncClient):
     def handle_new_block(self, response: dict) -> None:
         status = api.network_status()
         self.emit_event("network_status_update", status, ["service_subscription"])
+        self.last_update_time = status["meta"]["lastUpdate"]
 
     def log_event(self, name:str, response: dict) -> None:
         if "data" in response:
             logging.info(f"Subscribe API event {name}: {response['data']}")
+    
+    async def on_update(self, deltatime: float) -> None:
+        if time.time() - self.last_update_time > 0.5 * int(os.environ["DINGUS_BLOCK_TIME"]):
+            status = api.network_status()
+            self.emit_event("network_status_update", status, ["service_subscription"])
+            self.last_update_time = status["meta"]["lastUpdate"]
