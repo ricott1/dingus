@@ -92,7 +92,8 @@ class Transaction(object):
     def signed(self) -> bool:
         return len(self.schema.signatures) > 0
 
-    def sign(self, sk: SigningKey, net_id: bytes = constants.NETWORKS["mainnet"]) -> None:
+    def sign(self, sk: SigningKey) -> None:
+        net_id = constants.NETWORK_IDS["testnet"]
         signature = utils.sign(net_id + self.unsigned_bytes, sk)
         self.schema.signatures.extend([signature])
     

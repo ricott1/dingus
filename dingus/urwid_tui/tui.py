@@ -164,16 +164,16 @@ class AccountInfo(frames.UiPile):
     def __init__(self, parent, **kwargs) -> None:
         self.parent = parent
         self.accounts = {}
-        new_act_btn = create_button("New", borders=False)
+        new_act_btn = create_button("(N)ew", borders=False)
         urwid.connect_signal(new_act_btn, 'click', self.prompt_password)
         new_act_btn = urwid.AttrMap(new_act_btn, None, focus_map="line")
-        self.select_act_btn = create_button(f"Change ({len(self.accounts.keys())})", borders=False)
+        self.select_act_btn = create_button(f"(S)elect) ({len(self.accounts.keys())})", borders=False)
         urwid.connect_signal(self.select_act_btn, 'click', self.select_account)
         select_act_btn = urwid.AttrMap(self.select_act_btn, None, focus_map="line")
-        _btns = urwid.Columns([urwid.LineBox(select_act_btn), urwid.LineBox(new_act_btn)])
+        self.btns = urwid.Columns([urwid.LineBox(select_act_btn), urwid.LineBox(new_act_btn)])
         
         _header = urwid.LineBox(urwid.Text(""))
-        _widgets = [("pack", _header), ("pack", _btns), urwid.ListBox(urwid.SimpleFocusListWalker([]))]
+        _widgets = [("pack", _header), ("pack", self.btns), urwid.ListBox(urwid.SimpleFocusListWalker([]))]
         super().__init__(_widgets, **kwargs)
         self.current_account = None
         
@@ -181,6 +181,15 @@ class AccountInfo(frames.UiPile):
     def start(self) -> None:
         self.update_account_data()
         self.update_body()
+    
+    def handle_input(self, _input: str, pressed_since: float = 0) -> None:
+        if _input in ("s", "S"):
+            self.select_account()
+        elif _input in ("n", "N"):
+            self.prompt_password()
+        elif _input in ("c", "C"):
+            if self.current_account:
+                utils.copy_to_clipboard(self.current_account)
         
     def update_account_data(self) -> None:
         accounts = os.listdir("dingus/accounts")
@@ -204,8 +213,8 @@ class AccountInfo(frames.UiPile):
             self.parent.emit_event("request_account", {"address" : address}, ["user_input"])
            
     def update_body(self) -> None:
-        self.select_act_btn.set_label(f"Change ({len(self.accounts.keys())})")
-        self.select_act_btn.disabled = bool(len(self.accounts) == 0)
+        self.select_act_btn.set_label(f"(S)elect) ({len(self.accounts.keys())})")
+        # self.select_act_btn.disabled = bool(len(self.accounts) == 0)
         header_data = urwid.Text("No account data, create a new one first.", align= "center")
         body_data = [urwid.Text("")]
         if self.accounts and not self.current_account:
@@ -215,7 +224,7 @@ class AccountInfo(frames.UiPile):
             try:
                 public_key = self.accounts[self.current_account]["public_key"]
                 avatar = rgb_list_to_text(public_key.to_address().to_avatar())
-                btn = attr_button(["\n"] + avatar + ["\ncopy"], borders=False, on_press=lambda btn : utils.copy_to_clipboard(self.current_account))
+                btn = attr_button(["\n"] + avatar + ["\n(C)opy"], borders=False, on_press=lambda btn : utils.copy_to_clipboard(self.current_account))
                 balance = float(self.accounts[self.current_account]["balance"]) / LSK
                 header_data = urwid.Columns([(16, btn), urwid.Text(f"\n\n{self.current_account}\n\n{balance} LSK", align="center")])
                 
@@ -229,9 +238,10 @@ class AccountInfo(frames.UiPile):
        
         _body = urwid.ListBox(urwid.SimpleFocusListWalker(body_data))
         self.contents[0] = (urwid.LineBox(header_data), ("pack", None))
+        self.contents[1] = (self.btns, ("pack", None))
         self.contents[2] = (_body, ("weight", 1))
 
-    def prompt_send_lsk(self, btn) -> None:
+    def prompt_send_lsk(self, btn = None) -> None:
         bottom_w = self.contents[2][0]
         top_w = SendPrompt(self.send_lsk, self.update_body)
         _body = urwid.Overlay(top_w, bottom_w, "center", 60, ("relative", 0.5), 18)
@@ -256,17 +266,18 @@ class AccountInfo(frames.UiPile):
         }
         try:
             trs = transaction.BalanceTransfer.fromDict(tx_params)
-            
             # trs.sign(private_key)
             print(trs)
             input()
         finally:
             self.update_body()
 
-    def prompt_password(self, btn) -> None:
-        bottom_w = self.contents[2][0]
+    def prompt_password(self, btn = None) -> None:
+        bottom_w = urwid.WidgetDisable(self.contents[2][0])
         top_w = PasswordPrompt(self.new_account, self.update_body)
         _body = urwid.Overlay(top_w, bottom_w, "center", 36, ("relative", 0.5), 10)
+        self.contents[0] = (urwid.WidgetDisable(self.contents[0][0]), ("pack", None))
+        self.contents[1] = (urwid.WidgetDisable(self.contents[1][0]), ("pack", None))
         self.contents[2] = (_body, ("weight", 1))
         self.focus_position = 2
 
@@ -276,12 +287,13 @@ class AccountInfo(frames.UiPile):
         self.update_account_data()
         self.update_body()
     
-    def select_account(self, btn) -> None:
+    def select_account(self, btn = None) -> None:
         def select(btn, acc):
             self.current_account = acc
             self.update_body()
 
-        accounts = os.listdir("dingus/accounts")
+        if len(self.accounts) == 0:
+            return
         body_data = []
         for address in self.accounts:
             public_key = self.accounts[address]["public_key"]
@@ -292,7 +304,6 @@ class AccountInfo(frames.UiPile):
         
         _body = urwid.ListBox(urwid.SimpleFocusListWalker(body_data))
         self.contents[2] = (_body, ("weight", 1))
-
 
     async def handle_event(self, event: Event) -> None:
         if event.name == "response_account" and "summary" in event.data:
