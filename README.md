@@ -1,13 +1,12 @@
 # dingus
+
 Lisk wallet in python
 
-## Install dependencies
+## Using Poetry
 
-Use `python3.10`. 
-Using poetry:
+Install with `poetry install` then run with `poetry run dingus`.
 
-`poetry install`
 
-## Run
+## Using wheel
 
-`poetry run dingus`
+Install with `pip install dist/dingus-*.whl` then run with `dingus`.
