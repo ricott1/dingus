@@ -1,6 +1,4 @@
 import urwid
-import logging
-import collections
 
 WIDTH = 64
 HEIGHT = 24
@@ -77,25 +75,6 @@ def create_button(label, align="center", **kwargs):
     btn = MyButton(label, **kwargs)
     btn._label.align = align
     return btn
-
-
-def combine_RGB_colors(color1, color2, weight1=1, weight2=1):
-    return (int((color1[i] * weight1 + color2[i] * weight2) / (weight1 + weight2)) for i in range(3))
-
-
-def RGBA_to_RGB(r, g, b, a, background=None):
-    """
-    apply alpha using only RGB channels: https://en.wikipedia.org/wiki/Alpha_compositing
-    """
-    if background:
-        return combine_RGB_colors((r, g, b), background, weight1=a, weight2=255 * (255 - a))
-    elif a == 255:
-        return (r, g, b)
-    return (int(c * a / 255.0) for c in (r, g, b))
-
-
-def interpolate_colors(color1, color2, value):
-    return [int(round(x + (y - x) * value)) for x, y in zip(color1, color2)]
 
 def rgb_list_to_text(rgb_list: list[tuple[int]]) -> str:
     text = []

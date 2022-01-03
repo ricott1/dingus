@@ -1,4 +1,4 @@
-import schemas
+import dingus.codec
 import utils
 
 import transaction

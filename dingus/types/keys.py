@@ -41,7 +41,7 @@ class PrivateKey(SigningKey):
     def from_json(cls, filename: str, password: str = "") -> PrivateKey:
         with open(f"dingus/accounts/{filename}", "r") as f:
             cipherdata = json.loads(f.read())
-        print(cipherdata)
+    
         ciphertext = bytes.fromhex(cipherdata["ciphertext"])
         salt = bytes.fromhex(cipherdata["salt"])
         iv = bytes.fromhex(cipherdata["iv"])

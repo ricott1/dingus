@@ -19,14 +19,16 @@ class Processor(object):
         asyncio.run(self.start())
        
     def stop(self, *args):
-        tasks = asyncio.all_tasks(self.event_loop)
-        for task in tasks:
-            task.cancel()
         for comp in self.components:
             comp.stop()
+        tasks = asyncio.all_tasks(self.event_loop)
+        print("Terminating tasks", tasks)
+        asyncio.gather(*tasks)
+        sys.exit(0)
 
     async def start(self) -> None:
-        await asyncio.gather(*[asyncio.create_task(comp.start()) for comp in self.components])
+        # await asyncio.gather(*[asyncio.create_task(comp.start()) for comp in self.components])
+        [asyncio.create_task(comp.start()) for comp in self.components]
         deltatime = 0.02
         try:
             while True:
@@ -34,7 +36,7 @@ class Processor(object):
                 events = []
                 for comp in self.components:
                     events += comp.events
-                    comp.events = []
+                    comp.clear_events()
                 for event in events: 
                     if event.name == "quit_input":
                         raise RuntimeError
@@ -43,7 +45,7 @@ class Processor(object):
 
                 [asyncio.create_task(comp.on_update(deltatime)) for comp in self.components]
                 await asyncio.sleep(deltatime)
-        except (KeyboardInterrupt, RuntimeError) as e:
+        except (KeyboardInterrupt, RuntimeError, Exception) as e:
             print("keyboard interrupted", e)
         finally:
             self.stop()

@@ -1,4 +1,5 @@
 from __future__ import annotations
+import logging
 
 import dingus.codec as codec
 import dingus.utils as utils
@@ -9,7 +10,7 @@ from dingus.codec.json_format import MessageToJson, MessageToDict
 from google.protobuf.reflection import GeneratedProtocolMessageType
 from nacl.signing import SigningKey, VerifyKey
 
-import requests
+import os
 import json
 
 
@@ -76,7 +77,7 @@ class Transaction(object):
 
     @property
     def bytes(self) -> bytes:
-        return self.schema.SerializeToString(True)
+        return self.schema.SerializeToString()
     
     @property
     def dict(self) -> dict:
@@ -93,13 +94,15 @@ class Transaction(object):
         return len(self.schema.signatures) > 0
 
     def sign(self, sk: SigningKey) -> None:
-        net_id = constants.NETWORK_IDS["testnet"]
+        if "DINGUS_NETWORK_ID" not in os.environ:
+            logging.warn("Cannot sign transaction, network ID not set.")
+            return
+        net_id = bytes.fromhex(os.environ["DINGUS_NETWORK_ID"])
         signature = utils.sign(net_id + self.unsigned_bytes, sk)
         self.schema.signatures.extend([signature])
     
     def send(self) -> None:
-        r = api.send_tx(json.dumps(self.dict))
-        print(r)
+        r = api.send_tx(self.bytes.hex())
     
     def __str__(self) -> str:
         return json.dumps(self.dict)

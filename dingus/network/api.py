@@ -1,34 +1,42 @@
 import requests
+import os
 from dingus.network.constants import ENDPOINTS
 
 
-def fetch_block(block_id: bytes) -> dict:
-    endpoint = ENDPOINTS["testnet"]
-    url = f'{endpoint}/api/v2/blocks?blockId={block_id}'
+def fetch_block(key: str, value: str) -> dict:
+    net = os.environ["DINGUS_NETWORK"]
+    endpoint = ENDPOINTS[net]
+    url = f'{endpoint}/api/v2/blocks?{key}={value}'
     r = requests.get(url)
     return r.json()
 
-def fetch_tx(tx_id: bytes) -> dict:
-    endpoint = ENDPOINTS["testnet"]
+def fetch_tx(tx_id: str) -> dict:
+    net = os.environ["DINGUS_NETWORK"]
+    endpoint = ENDPOINTS[net]
     url = f'{endpoint}/api/transactions/{tx_id}'
     r = requests.get(url)
     return r.json()
 
-def fetch_account(address: bytes) -> dict:
-    endpoint = ENDPOINTS["testnet"]
-    url = f'{endpoint}/api/v2/accounts?address={address}'
+def fetch_account(key: str, value: str) -> dict:
+    net = os.environ["DINGUS_NETWORK"]
+    endpoint = ENDPOINTS[net]
+    url = f'{endpoint}/api/v2/accounts?{key}={value}'
     r = requests.get(url)
     return r.json()
 
-def fetch_account_from_public_key(public_key: bytes) -> dict:
-    endpoint = ENDPOINTS["testnet"]
-    url = f'{endpoint}/api/v2/accounts?publicKey={public_key}'
-    r = requests.get(url)
-    return r.json()
-
-def send_tx(tx: str) -> dict:
-    endpoint = ENDPOINTS["testnet"]
-    url = f'{endpoint}/api/transactions'
+def send_tx(hex_trs: str) -> dict:
+    net = os.environ["DINGUS_NETWORK"]
+    endpoint = ENDPOINTS[net]
+    url = f'{endpoint}/api/v2/transactions?transaction={hex_trs}'
     headers = {'content-type': 'application/json', 'Accept-Charset': 'UTF-8'}
-    r = requests.post(url, data=tx, headers=headers)
+    r = requests.post(url, headers=headers)
+    print(hex_trs)
+    input(r.json())
+    return r.json()
+
+def network_status() -> dict:
+    net = os.environ["DINGUS_NETWORK"]
+    endpoint = ENDPOINTS[net]
+    url = f'{endpoint}/api/v2/network/status'
+    r = requests.get(url)
     return r.json()

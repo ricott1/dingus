@@ -21,13 +21,15 @@ class TUI(component.ComponentMixin, urwid.Pile):
         self.warning_frame = frames.WarningFrame()
         _title = urwid.BoxAdapter(frames.TitleFrame(["Dingus"]), height=12)
         self.base_header = CurrentTipHeader(self)
-        _header = urwid.LineBox(urwid.BoxAdapter(self.base_header, height=3), title = "Dingus")
-        self.base_footer = MenuFooter(self)
-        _footer = urwid.BoxAdapter(self.base_footer, height=3)
+        _header = urwid.LineBox(urwid.BoxAdapter(self.base_header, height=5), title = "Dingus")
+        
         self.bodies = {
             "account" : AccountInfo(self),
-            "explorer" : BlockInfo(self)
+            "explorer" : Explorer(self)
         }
+
+        self.base_footer = MenuFooter(self)
+        _footer = urwid.BoxAdapter(self.base_footer, height=3)
         super().__init__(logger, [("pack", _header), self.bodies["explorer"], ("pack", _footer)])
 
     @property
@@ -37,13 +39,11 @@ class TUI(component.ComponentMixin, urwid.Pile):
     @active_body.setter
     def active_body(self, _body: frames.UiFrame | frames.UiPile) -> None:
         self.contents[1] = (_body, ("weight", 1))
-        self.active_body.start()
+        if hasattr(self.active_body, "start"):
+            self.active_body.start()
     
     def update_active_body(self, name: str) -> None:
-        if name == "quit":
-            self.emit_event("quit_input", {}, ["user_input"])
-        elif name in self.bodies:
-            self.active_body = self.bodies[name]
+        self.active_body = self.bodies[name]
 
     async def start(self):
         print("Starting urwid loop")
@@ -52,7 +52,8 @@ class TUI(component.ComponentMixin, urwid.Pile):
         self.loop.start()
         self.event_loop.set_exception_handler(self._exception_handler)
         for name in self.bodies:
-            self.bodies[name].start()
+            if hasattr(self.bodies[name], "start"):
+                self.bodies[name].start()
 
     def _exception_handler(self, loop, context):
         self.stop()
@@ -67,7 +68,10 @@ class TUI(component.ComponentMixin, urwid.Pile):
             loop.default_exception_handler(context)
         
     def stop(self):
-        self.loop.stop()
+        try:
+            self.loop.stop()
+        except AttributeError:
+            pass
 
     async def handle_event(self, event: dict) -> None:
         for name in self.bodies:
@@ -78,13 +82,14 @@ class TUI(component.ComponentMixin, urwid.Pile):
 
     def handle_input(self, _input: str, pressed_since: float = 0) -> None:
         if _input in ("q", "Q", "esc"):
-            self.update_active_body("quit")
+            self.emit_event("quit_input", {}, ["user_input"])
         elif _input in ("e", "E"):
             self.update_active_body("explorer")
         elif _input in ("a", "A"):
             self.update_active_body("account")
         else:
-            self.active_body.handle_input(_input, pressed_since)
+            if hasattr(self.active_body, "handle_input"):
+                self.active_body.handle_input(_input, pressed_since)
 
     async def on_update(self, _deltatime: float) -> None:
         cols, rows = terminal_size()
@@ -101,63 +106,113 @@ class TUI(component.ComponentMixin, urwid.Pile):
                 await self.active_body.on_update(_deltatime)
     
 
-class CurrentTipHeader(frames.UiFrame):
+class CurrentTipHeader(urwid.ListBox):
     def __init__(self, parent, **kwargs) -> None:
         self.parent = parent
-        _body = urwid.ListBox(urwid.SimpleFocusListWalker([urwid.Text("\n  Fetching current tip...")]))
+        _body = urwid.SimpleFocusListWalker([urwid.Text("\n Fetching network status...")])
         super().__init__(_body, **kwargs)
     
-    def update_block_data(self, block_data: dict) -> None:
-        btn = create_button(f"\nCurrent tip @ height {block_data['height']}: {block_data['id']}\n", borders=False)
-        urwid.connect_signal(btn, 'click', lambda btn: self.parent.emit_event("request_block", {"id": block_data["id"]}, ["user_input"]))
-        btn = urwid.AttrMap(btn, None, focus_map="line")
+    def update_status(self, data: dict) -> None:
+        if "data" not in data:
+            return
 
-        _body = urwid.ListBox(urwid.SimpleFocusListWalker([btn]))
-        self.contents["body"] = (_body, None)
+        text = f"Current tip @ height {data['data']['height']}"
+        tip_btn = attr_button(
+            text, 
+            borders=False,
+            on_press=lambda btn: self.parent.emit_event(
+                "request_block", 
+                {"key": "height", "value": data['data']['height']}, 
+                ["user_input"]
+            )
+        )
+       
+        text = f"Finalized @ height {data['data']['finalizedHeight']}"
+        finalized_btn = attr_button(
+            text, 
+            borders=False,
+            on_press=lambda btn: self.parent.emit_event(
+                "request_block", 
+                {"key": "height", "value": data['data']['finalizedHeight']}, 
+                ["user_input"]
+            )
+        )
+        
+        self.body[:] = [
+            urwid.Text(""), 
+            tip_btn, 
+            urwid.Text(""), 
+            finalized_btn, 
+            urwid.Text("")
+        ]
     
     async def handle_event(self, event: Event) -> None:
-        if event.name == "new_block":
-           self.update_block_data(event.data)
+        if event.name == "network_status_update":
+           self.update_status(event.data)
 
 
 class MenuFooter(frames.UiFrame):
     def __init__(self, parent, **kwargs) -> None:
         self.parent = parent
-        _menu = []
-        opts = ("Account", "Explorer", "Quit")
-        for opt in opts:
-            btn = create_button(opt, borders=False)
-            urwid.connect_signal(btn, 'click', lambda btn, name=opt.lower(): self.parent.update_active_body(name))
-            btn = urwid.AttrMap(btn, None, focus_map="line")
-            _menu.append(urwid.LineBox(btn))
+         
+        acc_btn = attr_button("(A)ccount", borders=False, on_press=lambda btn: self.parent.update_active_body("account"))
+        exp_btn = attr_button("(E)xplorer", borders=False, on_press=lambda btn: self.parent.update_active_body("explorer"))
+        quit_btn = attr_button("(Q)uit", borders=False, on_press=lambda btn: self.parent.emit_event("quit_input", {}, ["user_input"]))        
+        _menu = [
+            urwid.LineBox(acc_btn),
+            urwid.LineBox(exp_btn),
+            urwid.LineBox(quit_btn)
+        ] 
 
         _body = urwid.ListBox(urwid.SimpleFocusListWalker([urwid.Columns(_menu)]))
         super().__init__(_body, **kwargs)
 
 
-class BlockInfo(frames.UiFrame):
+class Explorer(urwid.ListBox):
     def __init__(self, parent, **kwargs) -> None:
         self.parent = parent
-        _body = urwid.ListBox(urwid.SimpleFocusListWalker([urwid.Text("\n  Fetching new blocks...")]))
+        _body = urwid.SimpleFocusListWalker([urwid.Text("")])
         super().__init__(_body, **kwargs)
     
-    def update_block_data(self, block_data: dict) -> None:
-        _block_data_list = [urwid.Text(f"\n  {k}: {v}") for k, v in block_data.items()]
+    def update_block_data(self, data: dict) -> None:
         columns = []
-        for k, v in block_data.items():
+        for k, v in data.items():
             btn = create_button(f"{v}")
             if k == "previousBlockId":
-                urwid.connect_signal(btn, 'click', lambda btn, id=v: self.parent.emit_event("request_block", {"id": id}, ["user_input"]))
+                urwid.connect_signal(btn, 'click', lambda btn, id=v: self.parent.emit_event("request_block", {"key": "id", "value": id}, ["user_input"]))
+            elif k == "generatorPublicKey":
+                address = keys.PublicKey(bytes.fromhex(v)).to_address().to_lsk32()
+                data = {"key": "address", "value": address, "response_name": "response_account_explorer"}
+                urwid.connect_signal(btn, 'click', lambda btn, id=v: self.parent.emit_event("request_account", data, ["user_input"]))
+            elif k == "generatorUsername":
+                data = {"key": "username", "value": v, "response_name": "response_account_explorer"}
+                urwid.connect_signal(btn, 'click', lambda btn, id=v: self.parent.emit_event("request_account", data, ["user_input"]))
+            elif k == "generatorAddress":
+                data = {"key": "address", "value": v, "response_name": "response_account_explorer"}
+                urwid.connect_signal(btn, 'click', lambda btn, id=v: self.parent.emit_event("request_account", data, ["user_input"]))
             btn = urwid.AttrMap(btn, None, focus_map="line")
             col = urwid.Columns([urwid.Text(f"\n  {k}:"), btn]) 
             columns.append(col)
         
-        _body = urwid.ListBox(urwid.SimpleFocusListWalker(columns))
-        self.contents["body"] = (_body, None)
+        self.body[:] = columns
+    
+    def update_account_data(self, data: dict) -> None:
+        if "summary" not in data:
+            return
+        columns = []
+        for k, v in data["summary"].items():
+            btn = create_button(f"{v}")
+            btn = urwid.AttrMap(btn, None, focus_map="line")
+            col = urwid.Columns([urwid.Text(f"\n  {k}:"), btn]) 
+            columns.append(col)
+        
+        self.body[:] = columns
     
     async def handle_event(self, event: Event) -> None:
         if event.name == "response_block":
-           self.update_block_data(event.data)
+            self.update_block_data(event.data)
+        elif event.name == "response_account_explorer":
+            self.update_account_data(event.data)
 
 
 class AccountInfo(frames.UiPile):
@@ -167,7 +222,7 @@ class AccountInfo(frames.UiPile):
         new_act_btn = create_button("(N)ew", borders=False)
         urwid.connect_signal(new_act_btn, 'click', self.prompt_password)
         new_act_btn = urwid.AttrMap(new_act_btn, None, focus_map="line")
-        self.select_act_btn = create_button(f"(S)elect) ({len(self.accounts.keys())})", borders=False)
+        self.select_act_btn = create_button(f"(S)elect ({len(self.accounts.keys())})", borders=False)
         urwid.connect_signal(self.select_act_btn, 'click', self.select_account)
         select_act_btn = urwid.AttrMap(self.select_act_btn, None, focus_map="line")
         self.btns = urwid.Columns([urwid.LineBox(select_act_btn), urwid.LineBox(new_act_btn)])
@@ -210,10 +265,10 @@ class AccountInfo(frames.UiPile):
                 "public_key": public_key,
                 "nonce": 0
             }
-            self.parent.emit_event("request_account", {"address" : address}, ["user_input"])
+            self.parent.emit_event("request_account", {"key": "address", "value": address, "response_name": "response_account_info"}, ["user_input"])
            
     def update_body(self) -> None:
-        self.select_act_btn.set_label(f"(S)elect) ({len(self.accounts.keys())})")
+        self.select_act_btn.set_label(f"(S)elect ({len(self.accounts.keys())})")
         # self.select_act_btn.disabled = bool(len(self.accounts) == 0)
         header_data = urwid.Text("No account data, create a new one first.", align= "center")
         body_data = [urwid.Text("")]
@@ -230,7 +285,7 @@ class AccountInfo(frames.UiPile):
                 
                 send_btn = attr_button(["Send LSK"], borders=False, on_press=self.prompt_send_lsk)
                 body_data = [urwid.LineBox(send_btn)]
-                self.parent.emit_event("request_account", {"address" : self.current_account}, ["user_input"])
+                self.parent.emit_event("request_account", {"key": "address", "value": self.current_account, "response_name": "response_account_info"}, ["user_input"])
             except Exception as e:
                 input(e)
                 header_data = urwid.Text("Invalid account file.", align= "center")
@@ -245,6 +300,8 @@ class AccountInfo(frames.UiPile):
         bottom_w = self.contents[2][0]
         top_w = SendPrompt(self.send_lsk, self.update_body)
         _body = urwid.Overlay(top_w, bottom_w, "center", 60, ("relative", 0.5), 18)
+        self.contents[0] = (urwid.WidgetDisable(self.contents[0][0]), ("pack", None))
+        self.contents[1] = (urwid.WidgetDisable(self.contents[1][0]), ("pack", None))
         self.contents[2] = (_body, ("weight", 1))
         self.focus_position = 2
     
@@ -266,8 +323,14 @@ class AccountInfo(frames.UiPile):
         }
         try:
             trs = transaction.BalanceTransfer.fromDict(tx_params)
-            # trs.sign(private_key)
+            filename = self.current_account + ".json"
+            private_key = keys.PrivateKey.from_json(filename, params["password"])
+            trs.sign(private_key)
             print(trs)
+            input()
+            trs.send()
+        except Exception as e:
+            print(e)
             input()
         finally:
             self.update_body()
@@ -284,6 +347,7 @@ class AccountInfo(frames.UiPile):
     def new_account(self, password: str) -> None:
         sk = utils.random_private_key()
         sk.to_json(password)
+        self.current_account = sk.to_public_key().to_address().to_lsk32()
         self.update_account_data()
         self.update_body()
     
@@ -300,15 +364,18 @@ class AccountInfo(frames.UiPile):
             avatar = rgb_list_to_text(public_key.to_address().to_avatar())
             btn = attr_button(["\n"] + avatar + ["\nselect"], borders=False, on_press=lambda btn, acc=address : select(btn, acc))
             body_data.append(urwid.Columns([(16, btn), urwid.Text(f"\n{address}", align="center")]))
-            self.parent.emit_event("request_account", {"address" : address}, ["user_input"])
+            self.parent.emit_event("request_account", {"key": "address", "value": address, "response_name": "response_account_info"}, ["user_input"])
         
         _body = urwid.ListBox(urwid.SimpleFocusListWalker(body_data))
         self.contents[2] = (_body, ("weight", 1))
 
     async def handle_event(self, event: Event) -> None:
-        if event.name == "response_account" and "summary" in event.data:
+        if event.name == "network_status_update":
+           self.parent.emit_event("request_account", {"key": "address", "value": self.current_account, "response_name": "response_account_info"}, ["user_input"])
+        elif event.name == "response_account_info" and "summary" in event.data:
             acc = event.data["summary"]["address"]
-            self.accounts[acc]["public_key"] = keys.PublicKey(bytes.fromhex(event.data["summary"]["publicKey"]))
+            if event.data["summary"]["publicKey"]:
+                self.accounts[acc]["public_key"] = keys.PublicKey(bytes.fromhex(event.data["summary"]["publicKey"]))
             if "token" in event.data:
                 self.accounts[acc]["balance"] = int(event.data["token"]["balance"])
             if "sequence" in event.data:
@@ -388,7 +455,7 @@ class SendPrompt(urwid.LineBox):
             "amount": self.amount_edit.value(),
             "data": self.data_edit.get_edit_text(),
             "fee": self.fee_edit.value(),
-            "pwd": self.pwd_edit.get_edit_text()
+            "password": self.pwd_edit.get_edit_text()
         }
 
         self.ok_callback(params)

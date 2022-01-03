@@ -132,32 +132,3 @@ class OverlayFrame(UiFrame):
         else:
             self.contents["body"] = (self.full_body, None)
             self.top_is_visible = True
-
-
-class TextFrame(UiFrame):
-    def __init__(self, text=[""]):
-        self.walker = urwid.SimpleFocusListWalker([urwid.Text(t) for t in text])
-        listbox = urwid.ListBox(self.walker)
-        super().__init__(listbox)
-
-    def update(self, text):
-        self.walker = urwid.SimpleFocusListWalker([urwid.Text(t) for t in text])
-
-
-class EntryFrame(UiFrame):
-    VERTICAL_OFFSET = 5
-
-    def __init__(self, text, size=(20, 1), caption="", on_finish=None):
-        self.entry = urwid.Edit(caption=caption)
-        self.size = size
-        self.selection = None
-        super().__init__(urwid.ListBox([urwid.Text(
-            "\n" * self.VERTICAL_OFFSET + text)]), footer=self.entry, focus_part="footer")
-
-    def handle_input(self, _input, pressed_since=0):
-        if _input == "enter":
-            _name = self.entry.get_edit_text().strip()
-            if len(_name) > 0:
-                self.selection = _name
-        else:
-            self.keypress(self.size, _input)

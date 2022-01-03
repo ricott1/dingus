@@ -35,7 +35,7 @@ class ComponentMixin(object):
         self.events.append(event)
 
     def clear_events(self) -> None:
-        self.emitted_events = []
+        self.events = []
     
     def get_events_by_name(self, name:str) -> list:
         return [event for event in self.events if event.name == name]
