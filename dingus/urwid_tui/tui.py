@@ -85,9 +85,8 @@ class TUI(component.ComponentMixin, urwid.Pile):
             self.update_active_body("explorer")
         elif _input in ("a", "A"):
             self.update_active_body("account")
-        else:
-            if hasattr(self.active_body, "handle_input"):
-                self.active_body.handle_input(_input, pressed_since)
+        elif hasattr(self.active_body, "handle_input"):
+            self.active_body.handle_input(_input, pressed_since)
 
     async def on_update(self, _deltatime: float) -> None:
         cols, rows = terminal_size()
@@ -213,39 +212,51 @@ class AccountInfo(frames.UiPile):
         self.parent = parent
         self.accounts = {}
         new_act_btn = create_button("(N)ew", borders=False)
-        urwid.connect_signal(new_act_btn, 'click', self.prompt_password)
+        urwid.connect_signal(new_act_btn, 'click', self.prompt_new_account)
         new_act_btn = urwid.AttrMap(new_act_btn, None, focus_map="line")
         self.select_act_btn = create_button(f"(S)elect ({len(self.accounts.keys())})", borders=False)
         urwid.connect_signal(self.select_act_btn, 'click', self.select_account)
         select_act_btn = urwid.AttrMap(self.select_act_btn, None, focus_map="line")
-        self.btns = urwid.Columns([urwid.LineBox(select_act_btn), urwid.LineBox(new_act_btn)])
+        _btns = urwid.Columns([urwid.LineBox(select_act_btn), urwid.LineBox(new_act_btn)])
         
         _header = urwid.LineBox(urwid.Text(""))
-        _widgets = [("pack", _header), ("pack", self.btns), urwid.ListBox(urwid.SimpleFocusListWalker([]))]
-        super().__init__(_widgets, **kwargs)
-        self.current_account = None
+        send_btn = attr_button(["Send LSK"], borders=False, on_press=self.prompt_send_lsk)
+
+        self.base_body = urwid.ListBox(urwid.SimpleFocusListWalker([urwid.LineBox(send_btn)]))
         
-    
+        _widgets = [("pack", _header), ("pack", _btns), self.base_body]
+        super().__init__(_widgets, **kwargs)
+        self._current_account = ""
+        self.select_account_btns = []
+        self.price_feeds = {"LSK_EUR" : 0}
+
+    @property
+    def current_account(self) -> str:
+        return self._current_account
+    @current_account.setter
+    def current_account(self, value: str) -> None:
+        self._current_account = value
+        self.update_header()
+        
     def start(self) -> None:
         self.update_account_data()
-        self.update_body()
     
     def handle_input(self, _input: str, pressed_since: float = 0) -> None:
         if _input in ("s", "S"):
             self.select_account()
         elif _input in ("n", "N"):
-            self.prompt_password()
+            self.prompt_new_account()
         elif _input in ("c", "C"):
             if self.current_account:
                 utils.copy_to_clipboard(self.current_account)
-        
+
     def update_account_data(self) -> None:
         accounts = os.listdir(os.environ["DINGUS_ACCOUNTS_PATH"])
         for filename in accounts:
+            address = filename.split(".")[0]
+            if address in self.accounts:
+                continue
             try:
-                address = filename.split(".")[0]
-                if address in self.accounts:
-                    continue
                 with open(f"{os.environ['DINGUS_ACCOUNTS_PATH']}/{filename}", "r") as f:
                     data = json.loads(f.read())
                 public_key = keys.PublicKey(bytes.fromhex(data["public_key"]))
@@ -256,112 +267,144 @@ class AccountInfo(frames.UiPile):
             self.accounts[address] = {
                 "balance": 0,
                 "public_key": public_key,
+                "avatar": rgb_list_to_text(public_key.to_address().to_avatar()),
                 "nonce": 0
             }
-            self.parent.emit_event("request_account", {"key": "address", "value": address, "response_name": "response_account_info"}, ["user_input"])
-           
-    def update_body(self) -> None:
+            
+            avatar = self.accounts[address]["avatar"]
+            def select_btn(addr):
+                self.reset_base_body()
+                self.current_account = addr
+                self.focus_position = 1
+                
+            btn = attr_button(
+                ["\n"] + avatar + ["\nselect"], 
+                borders = False, 
+                on_press = lambda btn, acc=address : select_btn(acc)
+            )
+            self.select_account_btns.append(urwid.Columns([(16, btn), urwid.Text(f"\n{address}", align="center")]))
+            data = {"key": "address", "value": address, "response_name": "response_account_info"}
+            self.parent.emit_event("request_account", data, ["user_input"])
+
         self.select_act_btn.set_label(f"(S)elect ({len(self.accounts.keys())})")
-        # self.select_act_btn.disabled = bool(len(self.accounts) == 0)
-        header_data = urwid.Text("No account data, create a new one first.", align= "center")
-        body_data = [urwid.Text("")]
+
         if self.accounts and not self.current_account:
             self.current_account = list(self.accounts.keys())[0]
+    
+    def reset_base_body(self):
+        self.contents[2] = (self.base_body, ("weight", 1))
 
-        if self.current_account:
-            try:
-                public_key = self.accounts[self.current_account]["public_key"]
-                avatar = rgb_list_to_text(public_key.to_address().to_avatar())
-                btn = attr_button(["\n"] + avatar + ["\n(C)opy"], borders=False, on_press=lambda btn : utils.copy_to_clipboard(self.current_account))
-                balance = float(self.accounts[self.current_account]["balance"]) / LSK
-                header_data = urwid.Columns([(16, btn), urwid.Text(f"\n\n{self.current_account}\n\n{balance} LSK", align="center")])
-                
-                send_btn = attr_button(["Send LSK"], borders=False, on_press=self.prompt_send_lsk)
-                body_data = [urwid.LineBox(send_btn)]
-                self.parent.emit_event("request_account", {"key": "address", "value": self.current_account, "response_name": "response_account_info"}, ["user_input"])
-            except Exception as e:
-                input(e)
-                header_data = urwid.Text("Invalid account file.", align= "center")
-                body_data = [urwid.Text("")]
-       
-        _body = urwid.ListBox(urwid.SimpleFocusListWalker(body_data))
+    def update_header(self) -> None:
+        if not self.current_account:
+            header_data = urwid.Text("No account data, create a new one first.", align= "center")
+        
+        else:
+            avatar = self.accounts[self.current_account]["avatar"]
+            btn = attr_button(["\n"] + avatar + ["\n(C)opy"], borders=False, on_press=lambda btn : utils.copy_to_clipboard(self.current_account))
+            balance = float(self.accounts[self.current_account]["balance"]) / LSK
+            lsk_to_eur = balance * self.price_feeds["LSK_EUR"]
+            header_data = urwid.Columns([
+                (16, btn), 
+                urwid.Text(f"\n\n{self.current_account}\n\n{balance} LSK - {lsk_to_eur:.2f} EUR", align="center")
+            ])
+
         self.contents[0] = (urwid.LineBox(header_data), ("pack", None))
-        self.contents[1] = (self.btns, ("pack", None))
-        self.contents[2] = (_body, ("weight", 1))
 
     def prompt_send_lsk(self, btn = None) -> None:
-        bottom_w = self.contents[2][0]
-        top_w = prompts.SendPrompt(self.send_lsk, self.update_body)
-        _body = urwid.Overlay(top_w, bottom_w, "center", 60, ("relative", 0.5), 18)
-        self.contents[0] = (urwid.WidgetDisable(self.contents[0][0]), ("pack", None))
-        self.contents[1] = (urwid.WidgetDisable(self.contents[1][0]), ("pack", None))
-        self.contents[2] = (_body, ("weight", 1))
-        self.focus_position = 2
+        if not self.current_account:
+            return
+        bottom_w = urwid.WidgetDisable(self)
+        top_w = prompts.SendPrompt(self.send_lsk, self.destroy_prompt)
+        _overlay = urwid.Overlay(top_w, bottom_w, "center", 60, ("relative", 0.5), 18)
+        self.parent.active_body = _overlay
     
     def send_lsk(self, params: dict) -> None:
+        input(params)
         if not utils.validate_lisk32_address(params["recipientAddress"]):
-            print("Invalid lsk address")
-            self.update_body()
+            self.prompt_text("Invalid lsk address")
+            return
+        try:
+            fee = float(params["fee"])
+        except ValueError:
+            self.prompt_text("Invalid fee")
+            return
+        
+        try:
+            amount = float(params["amount"])
+        except ValueError:
+            self.prompt_text("Invalid amount")
+            return
+
+        try:
+            data = str.encode(params["data"])
+        except ValueError:
+            self.prompt_text("Invalid data")
             return
 
         tx_params = {
             "senderPublicKey": self.accounts[self.current_account]["public_key"].encode(),
             "nonce": self.accounts[self.current_account]["nonce"],
-            "fee": params["fee"],
+            "fee": int(fee * LSK),
             "asset": {
-                "amount": params["amount"],
+                "amount": int(amount * LSK),
                 "recipientAddress": utils.get_address_from_lisk32_address(params["recipientAddress"]),
-                "data": params["data"]
+                "data": data
             }   
         }
+
+        trs = transaction.BalanceTransfer.fromDict(tx_params)
+        input(trs)
+
         try:
-            trs = transaction.BalanceTransfer.fromDict(tx_params)
             filename = self.current_account + ".json"
             private_key = keys.PrivateKey.from_json(filename, params["password"])
             trs.sign(private_key)
             trs.send()
+            # Increase nonce here in case user send multiple transaction
+            # within one block. Real value will be overwritten on next block.
+            self.accounts[self.current_account]["nonce"] += 1
+            self.prompt_text("Transaction sent!", title="Success")
         except Exception as e:
-            print(e)
-        finally:
-            self.update_body()
+            self.prompt_text("Error:", e)
 
-    def prompt_password(self, btn = None) -> None:
-        bottom_w = urwid.WidgetDisable(self.contents[2][0])
-        top_w = prompts.PasswordPrompt(self.new_account, self.update_body)
-        _body = urwid.Overlay(top_w, bottom_w, "center", 36, ("relative", 0.5), 10)
-        self.contents[0] = (urwid.WidgetDisable(self.contents[0][0]), ("pack", None))
-        self.contents[1] = (urwid.WidgetDisable(self.contents[1][0]), ("pack", None))
+    def destroy_prompt(self) -> None:
+        self.parent.active_body = self
+    
+    def prompt_text(self, text: str = "There was an error", title: str = "Error") -> None:
+        bottom_w = urwid.WidgetDisable(self)
+        top_w = prompts.TextPrompt(text, self.destroy_prompt, title=title)
+        _overlay = urwid.Overlay(top_w, bottom_w, "center", 36, ("relative", 0.5), 10)
+        self.parent.active_body = _overlay
+
+    def prompt_new_account(self, btn = None) -> None:
+        bottom_w = urwid.WidgetDisable(self)
+        top_w = prompts.PasswordPrompt(self.create_new_account, self.destroy_prompt)
+        _overlay = urwid.Overlay(top_w, bottom_w, "center", 36, ("relative", 0.5), 10)
+        self.parent.active_body = _overlay
+
+    def create_new_account(self, password: str) -> None:
+        sk = utils.random_private_key()
+        sk.to_json(password)
+        
+        self.update_account_data()
+        address = sk.to_public_key().to_address().to_lsk32()
+        self.current_account = address
+        self.destroy_prompt()
+    
+    def select_account(self, btn = None) -> None:
+        _body = urwid.ListBox(urwid.SimpleFocusListWalker(self.select_account_btns))
         self.contents[2] = (_body, ("weight", 1))
         self.focus_position = 2
 
-    def new_account(self, password: str) -> None:
-        sk = utils.random_private_key()
-        sk.to_json(password)
-        self.current_account = sk.to_public_key().to_address().to_lsk32()
-        self.update_account_data()
-        self.update_body()
-    
-    def select_account(self, btn = None) -> None:
-        def select(btn, acc):
-            self.current_account = acc
-            self.update_body()
-
-        if len(self.accounts) == 0:
-            return
-        body_data = []
-        for address in self.accounts:
-            public_key = self.accounts[address]["public_key"]
-            avatar = rgb_list_to_text(public_key.to_address().to_avatar())
-            btn = attr_button(["\n"] + avatar + ["\nselect"], borders=False, on_press=lambda btn, acc=address : select(btn, acc))
-            body_data.append(urwid.Columns([(16, btn), urwid.Text(f"\n{address}", align="center")]))
-            self.parent.emit_event("request_account", {"key": "address", "value": address, "response_name": "response_account_info"}, ["user_input"])
-        
-        _body = urwid.ListBox(urwid.SimpleFocusListWalker(body_data))
-        self.contents[2] = (_body, ("weight", 1))
-
     async def handle_event(self, event: Event) -> None:
         if event.name == "network_status_update":
-           self.parent.emit_event("request_account", {"key": "address", "value": self.current_account, "response_name": "response_account_info"}, ["user_input"])
+            for address in self.accounts:
+                data = {"key": "address", "value": address, "response_name": "response_account_info"}
+                self.parent.emit_event("request_account", data, ["user_input"])
+        elif event.name == "market_prices_update":
+            for feed in event.data:
+                self.price_feeds[feed["code"]] = float(feed["rate"])
+                self.update_header()
         elif event.name == "response_account_info" and "summary" in event.data:
             acc = event.data["summary"]["address"]
             if event.data["summary"]["publicKey"]:

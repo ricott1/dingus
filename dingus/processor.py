@@ -25,13 +25,13 @@ class Processor(object):
 
     async def start(self) -> None:
         await asyncio.gather(*[asyncio.create_task(comp.start()) for comp in self.components])
-        deltatime = 0.02
+        deltatime = 0.05
         exit_flag = False
         try:
             while True:
                 if exit_flag:
                     break
-                tasks = []
+                [asyncio.create_task(comp.on_update(deltatime)) for comp in self.components]
                 events = []
                 for comp in self.components:
                     events += comp.events
@@ -39,10 +39,9 @@ class Processor(object):
                 for event in events: 
                     if event.name == "quit_input":
                         exit_flag = True
-                    for comp in self.components:
-                        tasks.append(asyncio.create_task(comp.handle_event(event)))
-
-                [asyncio.create_task(comp.on_update(deltatime)) for comp in self.components]
+                        break
+                    [asyncio.create_task(comp.handle_event(event)) for comp in self.components]
+                
                 await asyncio.sleep(deltatime)
         finally:
             await self.stop()

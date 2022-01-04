@@ -38,3 +38,17 @@ def network_status() -> dict:
     url = f'{endpoint}/api/v2/network/status'
     r = requests.get(url)
     return r.json()
+
+def network_fees() -> dict:
+    net = os.environ["DINGUS_NETWORK"]
+    endpoint = ENDPOINTS[net]
+    url = f'{endpoint}/api/v2/fees'
+    r = requests.get(url)
+    return r.json()
+
+def market_prices() -> dict:
+    net = os.environ["DINGUS_NETWORK"]
+    endpoint = ENDPOINTS[net]
+    url = f'{endpoint}/api/v2/market/prices'
+    r = requests.get(url)
+    return r.json()
