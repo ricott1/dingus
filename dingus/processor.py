@@ -31,7 +31,7 @@ class Processor(object):
             while True:
                 if exit_flag:
                     break
-                [asyncio.create_task(comp.on_update(deltatime)) for comp in self.components]
+                await asyncio.wait([comp.on_update(deltatime) for comp in self.components])
                 events = []
                 for comp in self.components:
                     events += comp.events
