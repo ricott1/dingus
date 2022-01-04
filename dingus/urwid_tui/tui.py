@@ -338,13 +338,13 @@ class AccountInfo(frames.UiPile):
                 utils.copy_to_clipboard(self.current_account)
 
     def update_account_data(self) -> None:
-        accounts = os.listdir(os.environ["DINGUS_ACCOUNTS_PATH"])
+        accounts = os.listdir("{os.environ['DINGUS_BASE_PATH']}/accounts")
         for filename in accounts:
             address = filename.split(".")[0]
             if address in self.accounts:
                 continue
             try:
-                with open(f"{os.environ['DINGUS_ACCOUNTS_PATH']}/{filename}", "r") as f:
+                with open(f"{os.environ['DINGUS_BASE_PATH']}/accounts/{filename}", "r") as f:
                     data = json.loads(f.read())
                 public_key = keys.PublicKey(bytes.fromhex(data["public_key"]))
             except Exception as e:
@@ -500,6 +500,9 @@ class AccountInfo(frames.UiPile):
             self.prompt_text("Invalid lsk address")
             return
         
+        with open(f"{os.environ['DINGUS_BASE_PATH']}/bookmarks.txt", "a") as f:
+            f.write(address)
+
         self.current_account = address
         self.destroy_prompt()
 

@@ -21,14 +21,14 @@ def start():
     )
 
     parser.add_argument(
-        "-p", "--accounts-path", type=str, nargs=1, default=[str(Path.home()) + "/.dingus/accounts"],
-        help = "path to store account files"
+        "-p", "--base-path", type=str, nargs=1, default=[str(Path.home()) + "/.dingus"],
+        help = "path to store dingus data files"
     )
 
     args = parser.parse_args()
     os.environ["DINGUS_NETWORK"] = args.network[0]
-    os.environ["DINGUS_ACCOUNTS_PATH"] = args.accounts_path[0]
-    Path(os.environ["DINGUS_ACCOUNTS_PATH"]).mkdir(parents=True, exist_ok=True)
+    os.environ["DINGUS_BASE_PATH"] = args.accounts_path[0]
+    Path(f"{os.environ['DINGUS_BASE_PATH']}/accounts").mkdir(parents=True, exist_ok=True)
 
     os.environ["DINGUS_NETWORK_ID"] = ""
     os.environ["DINGUS_BLOCK_TIME"] = "10"
