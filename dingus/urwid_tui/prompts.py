@@ -1,20 +1,52 @@
 import urwid
-from typing import Callable
+from typing import Callable, Any
 import os
 
 from dingus.urwid_tui.utils import attr_button
 import dingus.urwid_tui.frames as frames
 from dingus.constants import LSK
 
-class TextPrompt(urwid.LineBox):
-    def __init__(self, error_text: str, title: str, ok_callback: Callable[[], None]) -> None:
-        self.ok_callback = ok_callback
 
-        header_text = urwid.Text(('banner', title), align = 'center')
-        header = urwid.AttrMap(header_text, 'banner')
+class Prompt(urwid.LineBox):
+    def __init__(self, title: str, body_widgets: list, ok_callback: Callable[[Any], None], cancel_callback: Callable[[Any], None] | None = None, focus_item:int = 2) -> None:
+        self.ok_callback = ok_callback
+        self.cancel_callback = cancel_callback
+
+        header = urwid.Text(title + "\n", align = "center")
+
+        footer_columns = [
+            urwid.LineBox(attr_button("OK", on_press = self.ok, borders=False))
+        ]
+        if cancel_callback:
+            footer_columns.append(
+                urwid.LineBox(attr_button("Cancel", on_press = self.cancel, borders=False))
+            )
+        footer = urwid.Columns(footer_columns)
+
+        _widgets = [("pack", header), *body_widgets, ("pack", footer)]
+        super().__init__(
+            frames.UiPile(_widgets, focus_item=focus_item),
+            tlcorner = "╔", 
+            tline = "═", 
+            lline = "║", 
+            trcorner = "╗", 
+            blcorner = "╚", 
+            rline = "║", 
+            bline = "═", 
+            brcorner = "╝"
+        )
+    
+    def ok(self, btn):
+        self.ok_callback()
+    
+    def cancel(self, btn):
+        self.cancel_callback()
+
+class TextPrompt(Prompt):
+    def __init__(self, error_text: str, title: str, ok_callback: Callable[[], None]) -> None:
 
         error = urwid.Text(error_text)
-        body_filler = urwid.Filler(error, valign = 'top')
+        body_filler = urwid.Filler(error, valign = "top")
         body_padding = urwid.Padding(
             body_filler,
             left = 1,
@@ -22,103 +54,102 @@ class TextPrompt(urwid.LineBox):
         )
         body = urwid.LineBox(body_padding)
 
-        footer = urwid.Columns([
-            urwid.LineBox(attr_button("OK", on_press = self.ok, borders=False)), 
-        ])
-
-        _widgets = [("pack", header), body, ("pack", footer)]
-        super().__init__(frames.UiPile(_widgets, focus_item=2))
+        super().__init__(title, [body], ok_callback)
 
     def ok(self, btn):
         self.ok_callback()
 
-class PasswordPrompt(urwid.LineBox):
+class NewAccountPrompt(Prompt):
     def __init__(self, ok_callback: Callable[[str], None], cancel_callback: Callable[[], None]) -> None:
         self.ok_callback = ok_callback
         self.cancel_callback = cancel_callback
 
-        header_text = urwid.Text(('banner', 'Password'), align = 'center')
-        header = urwid.AttrMap(header_text, 'banner')
-
-        self.pwd_edit = urwid.Edit("$ ", mask="*")
-        body_filler = urwid.Filler(self.pwd_edit, valign = 'top')
+        self.pwd_edit = urwid.Edit("", mask="*")
+        body_filler = urwid.Filler(self.pwd_edit, valign = "top")
         body_padding = urwid.Padding(
             body_filler,
             left = 1,
             right = 1
         )
-        body = urwid.LineBox(body_padding)
+        body = urwid.LineBox(body_padding, title = "Password")
 
-        footer = urwid.Columns([
-            urwid.LineBox(attr_button("OK", on_press = self.ok, borders=False)), 
-            urwid.LineBox(attr_button("Cancel", on_press = self.cancel, borders=False))
-        ])
-
-        _widgets = [("pack", header), body, ("pack", footer)]
-        super().__init__(frames.UiPile(_widgets, focus_item=2))
+        super().__init__(
+            "New Account", 
+            [body], 
+            ok_callback, 
+            cancel_callback = cancel_callback, 
+            focus_item=1
+        )
 
     def ok(self, btn):
         pwd = self.pwd_edit.get_edit_text()
         self.ok_callback(pwd)
     
-    def cancel(self, btn):
-        self.cancel_callback()
 
-class PassphrasePrompt(urwid.LineBox):
+class ImportPrompt(Prompt):
     def __init__(self, ok_callback: Callable[[str, str], None], cancel_callback: Callable[[], None]) -> None:
-        self.ok_callback = ok_callback
-        self.cancel_callback = cancel_callback
-
-        header_text = urwid.Text(('banner', 'Import Account'), align = 'center')
-        header = urwid.AttrMap(header_text, 'banner')
-
-        self.pwd_edit = urwid.Edit("Password $ ", mask="*")
-        pwd_filler = urwid.Filler(self.pwd_edit, valign = 'top')
+        self.pwd_edit = urwid.Edit("", mask="*")
+        pwd_filler = urwid.Filler(self.pwd_edit, valign = "top")
         pwd_padding = urwid.Padding(
             pwd_filler,
             left = 1,
             right = 1
         )
-        pwd_body = urwid.LineBox(pwd_padding)
+        pwd_body = urwid.LineBox(pwd_padding, title = "Password")
 
-        self.passphrase_edit = urwid.Edit("Passphrase $ ", mask="*")
-        passphrase_filler = urwid.Filler(self.passphrase_edit, valign = 'top')
+        self.passphrase_edit = urwid.Edit("", mask="*")
+        passphrase_filler = urwid.Filler(self.passphrase_edit, valign = "top")
         passphrase_padding = urwid.Padding(
             passphrase_filler,
             left = 1,
             right = 1
         )
-        passphrase_body = urwid.LineBox(passphrase_padding)
+        passphrase_body = urwid.LineBox(passphrase_padding, title = "Passphrase")
 
-        footer = urwid.Columns([
-            urwid.LineBox(attr_button("OK", on_press = self.ok, borders=False)), 
-            urwid.LineBox(attr_button("Cancel", on_press = self.cancel, borders=False))
-        ])
-
-        _widgets = [("pack", header), ("weight", 1, pwd_body), ("weight", 2, passphrase_body), ("pack", footer)]
-        super().__init__(frames.UiPile(_widgets, focus_item=3))
+        super().__init__(
+            "Import Account", 
+            [("weight", 2, passphrase_body), ("weight", 1, pwd_body)], 
+            ok_callback, 
+            cancel_callback = cancel_callback, 
+            focus_item=1
+        )
 
     def ok(self, btn):
         pwd = self.pwd_edit.get_edit_text()
         passphrase = self.passphrase_edit.get_edit_text()
         self.ok_callback(pwd, passphrase)
+
+
+class BookmarkPrompt(Prompt):
+    def __init__(self, ok_callback: Callable[[str], None], cancel_callback: Callable[[], None]) -> None:
+        self.address_edit = urwid.Edit("")
+        body_filler = urwid.Filler(self.address_edit, valign = "top")
+        body_padding = urwid.Padding(
+            body_filler,
+            left = 1,
+            right = 1
+        )
+        body = urwid.LineBox(body_padding, title = "Address")
+
+        super().__init__(
+            "Bookmark", 
+            [body], 
+            ok_callback, 
+            cancel_callback = cancel_callback, 
+            focus_item=1
+        )
+
+    def ok(self, btn):
+        address = self.address_edit.get_edit_text()
+        self.ok_callback(address)
     
-    def cancel(self, btn):
-        self.cancel_callback()
 
-
-class SendPrompt(urwid.LineBox):
+class SendPrompt(Prompt):
     def __init__(self, ok_callback: Callable[[dict], None], cancel_callback: Callable[[], None]) -> None:
-        self.ok_callback = ok_callback
-        self.cancel_callback = cancel_callback
-
-        header_text = urwid.Text(('banner', 'Send'), align = 'center')
-        header = urwid.AttrMap(header_text, 'banner')
-
         self.recipient_edit = urwid.Edit("Recipient: ")
         self.amount_edit = urwid.Edit("Amount: LSK ", edit_text="0")
         self.data_edit = urwid.Edit("Data: ")
-        self.fee_edit = urwid.Edit("Fee: LSK ", edit_text = str(float(int(os.environ["DINGUS_MIN_FEE_PER_BYTE"]) / LSK)))
+        self.fee_edit = urwid.Edit("Fee: LSK ", edit_text = f"{float(int(os.environ['DINGUS_MIN_FEE_PER_BYTE']) / LSK):.2f}")
         self.pwd_edit = urwid.Edit("Password: ", mask="*")
         params = urwid.ListBox(urwid.SimpleFocusListWalker([
             self.recipient_edit,
@@ -131,15 +162,15 @@ class SendPrompt(urwid.LineBox):
             urwid.Text(""),
             self.pwd_edit
         ]))
-        body = urwid.LineBox(params)
+        body = urwid.LineBox(params, title = "Parameters")
 
-        footer = urwid.Columns([
-            urwid.LineBox(attr_button("OK", on_press = self.ok, borders=False)), 
-            urwid.LineBox(attr_button("Cancel", on_press = self.cancel, borders=False))
-        ])
-
-        _widgets = [("pack", header), body, ("pack", footer)]
-        super().__init__(frames.UiPile(_widgets, focus_item=2))
+        super().__init__(
+            "Send LSK", 
+            [body], 
+            ok_callback, 
+            cancel_callback = cancel_callback, 
+            focus_item=1
+        )
 
     def ok(self, btn):
         params = {
@@ -151,6 +182,3 @@ class SendPrompt(urwid.LineBox):
         }
 
         self.ok_callback(params)
-    
-    def cancel(self, btn):
-        self.cancel_callback()

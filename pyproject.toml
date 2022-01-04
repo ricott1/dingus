@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "dingus"
-version = "0.2.0"
+version = "0.3.0"
 description = "Command-line Lisk explorer"
 authors = ["Alessandro Ricottone <ricott2@gmail.com>"]
 license = "MIT"

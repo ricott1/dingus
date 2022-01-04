@@ -11,7 +11,6 @@ class Processor(object):
             socket.DingusClient(),
             tui.TUI()
         ]
-
         print("Starting with components", self.components)
         asyncio.run(self.start())
        
@@ -42,7 +41,6 @@ class Processor(object):
                         break
                     [asyncio.create_task(comp.handle_event(event)) for comp in self.components]
                     # await asyncio.wait([comp.handle_event(event) for comp in self.components])
-
                 await asyncio.sleep(deltatime)
         finally:
             await self.stop()

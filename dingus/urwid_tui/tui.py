@@ -62,8 +62,8 @@ class TUI(component.ComponentMixin, urwid.Pile):
     def _exception_handler(self, loop, context):
         self.stop()
         exc = context.get('exception')
-        print("Traceback: ", traceback.format_exc())
         if exc:
+            print("Traceback: ", traceback.format_exc())
             print(type(exc), exc, exc.__traceback__)
             if not isinstance(exc, urwid.ExitMainLoop):
                 # Store the exc_info so we can re-raise after the loop stops
@@ -281,15 +281,25 @@ class AccountInfo(frames.UiPile):
             borders=False,
             on_press = self.select_account
         )
+        self.selecting_account = False
+
         import_act_btn = attr_button(
             f"(I)mport", 
             borders=False,
             on_press = self.prompt_import_account
         )
+
+        bookmark_act_btn = attr_button(
+            f"(B)ookmark", 
+            borders=False,
+            on_press = self.prompt_bookmark_account
+        )
+
         _btns = urwid.Columns([
             urwid.LineBox(select_act_btn), 
             urwid.LineBox(new_act_btn),
-            urwid.LineBox(import_act_btn)
+            urwid.LineBox(import_act_btn),
+            urwid.LineBox(bookmark_act_btn)
             ])
         
         _header = urwid.LineBox(urwid.Text(""))
@@ -321,6 +331,8 @@ class AccountInfo(frames.UiPile):
             self.prompt_new_account()
         elif _input in ("i", "I"):
             self.prompt_import_account()
+        elif _input in ("b", "B"):
+            self.prompt_bookmark_account()
         elif _input in ("c", "C"):
             if self.current_account:
                 utils.copy_to_clipboard(self.current_account)
@@ -378,7 +390,7 @@ class AccountInfo(frames.UiPile):
             lsk_to_eur = balance * self.price_feeds["LSK_EUR"]
             header_data = urwid.Columns([
                 (16, btn), 
-                urwid.Text(f"\n\n{self.current_account}\n\n{balance} LSK - {lsk_to_eur:.2f} EUR", align="center")
+                urwid.Text(f"\n\n{self.current_account}\n\n{balance} LSK = {lsk_to_eur:.2f} EUR", align="center")
             ])
 
         self.contents[0] = (urwid.LineBox(header_data), ("pack", None))
@@ -388,7 +400,7 @@ class AccountInfo(frames.UiPile):
             return
         bottom_w = urwid.WidgetDisable(self)
         top_w = prompts.SendPrompt(self.send_lsk, self.destroy_prompt)
-        _overlay = urwid.Overlay(top_w, bottom_w, "center", 60, ("relative", 0.5), 18)
+        _overlay = urwid.Overlay(top_w, bottom_w, "center", 60, ("relative", 15), 18)
         self.parent.active_body = _overlay
     
     def send_lsk(self, params: dict) -> None:
@@ -445,13 +457,13 @@ class AccountInfo(frames.UiPile):
     def prompt_text(self, text: str = "There was an error", title: str = "Error") -> None:
         bottom_w = urwid.WidgetDisable(self)
         top_w = prompts.TextPrompt(text, title, self.destroy_prompt)
-        _overlay = urwid.Overlay(top_w, bottom_w, "center", 36, ("relative", 0.5), 10)
+        _overlay = urwid.Overlay(top_w, bottom_w, "center", 48, ("relative", 15), 10)
         self.parent.active_body = _overlay
 
     def prompt_new_account(self, btn = None) -> None:
         bottom_w = urwid.WidgetDisable(self)
-        top_w = prompts.PasswordPrompt(self.create_new_account, self.destroy_prompt)
-        _overlay = urwid.Overlay(top_w, bottom_w, "center", 36, ("relative", 0.5), 10)
+        top_w = prompts.NewAccountPrompt(self.create_new_account, self.destroy_prompt)
+        _overlay = urwid.Overlay(top_w, bottom_w, "center", 48, ("relative", 15), 10)
         self.parent.active_body = _overlay
 
     def create_new_account(self, password: str) -> None:
@@ -464,8 +476,8 @@ class AccountInfo(frames.UiPile):
     
     def prompt_import_account(self, btn = None) -> None:
         bottom_w = urwid.WidgetDisable(self)
-        top_w = prompts.PassphrasePrompt(self.import_account, self.destroy_prompt)
-        _overlay = urwid.Overlay(top_w, bottom_w, "center", 40, ("relative", 0.5), 16)
+        top_w = prompts.ImportPrompt(self.import_account, self.destroy_prompt)
+        _overlay = urwid.Overlay(top_w, bottom_w, "center", 60, ("relative", 15), 16)
         self.parent.active_body = _overlay
     
     def import_account(self, password: str, passphrase: str) -> None:
@@ -477,10 +489,29 @@ class AccountInfo(frames.UiPile):
         self.current_account = address
         self.destroy_prompt()
     
+    def prompt_bookmark_account(self, btn = None) -> None:
+        bottom_w = urwid.WidgetDisable(self)
+        top_w = prompts.BookmarkPrompt(self.bookmark_account, self.destroy_prompt)
+        _overlay = urwid.Overlay(top_w, bottom_w, "center", 48, ("relative", 15), 10)
+        self.parent.active_body = _overlay
+    
+    def bookmark_account(self, address: str) -> None:
+        if not utils.validate_lisk32_address(address):
+            self.prompt_text("Invalid lsk address")
+            return
+        
+        self.current_account = address
+        self.destroy_prompt()
+
     def select_account(self, btn = None) -> None:
-        _body = urwid.ListBox(urwid.SimpleFocusListWalker(self.select_account_btns))
-        self.contents[2] = (_body, ("weight", 1))
-        self.focus_position = 2
+        if self.selecting_account:
+            self.reset_base_body()
+            self.selecting_account = False
+        else:
+            _body = urwid.ListBox(urwid.SimpleFocusListWalker(self.select_account_btns))
+            self.contents[2] = (_body, ("weight", 1))
+            self.focus_position = 2
+            self.selecting_account = True
 
     async def handle_event(self, event: Event) -> None:
         if event.name == "network_status_update":
