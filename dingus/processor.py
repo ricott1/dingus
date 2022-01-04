@@ -41,7 +41,8 @@ class Processor(object):
                         exit_flag = True
                         break
                     [asyncio.create_task(comp.handle_event(event)) for comp in self.components]
-                
+                    # await asyncio.wait([comp.handle_event(event) for comp in self.components])
+
                 await asyncio.sleep(deltatime)
         finally:
             await self.stop()

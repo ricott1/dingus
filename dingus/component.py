@@ -30,7 +30,7 @@ class ComponentMixin(object):
     
     def emit_event(self, name: str, data: dict, tags: list = []) -> None:
         event = Event(name, data, tags)
-        logging.info(f"Emitting event: {event.name}")
+        logging.info(f"Emitting event: {event.name} - {event.data}")
         self.events.append(event)
 
     def clear_events(self) -> None:

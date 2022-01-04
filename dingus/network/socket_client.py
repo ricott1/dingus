@@ -48,6 +48,8 @@ class DingusClient(component.ComponentMixin, socketio.AsyncClient):
             block = api.fetch_block(event.data["key"], event.data["value"])
             if "data" in block:
                 self.emit_event("response_block", block["data"][0], ["api_response"])
+            else:
+                input(block)
         elif event.name == "request_account":
             account = api.fetch_account(event.data["key"], event.data["value"])
             name = event.data["response_name"]

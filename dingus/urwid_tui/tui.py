@@ -19,7 +19,13 @@ class TUI(component.ComponentMixin, urwid.Pile):
         self.warning_frame = frames.WarningFrame()
         _title = urwid.BoxAdapter(frames.TitleFrame(["Dingus"]), height=12)
         self.base_header = CurrentTipHeader(self)
-        _header = urwid.LineBox(urwid.BoxAdapter(self.base_header, height=4), title = "Dingus")
+        _header = urwid.LineBox(
+            urwid.BoxAdapter(
+                urwid.WidgetDisable(self.base_header), 
+                height=4
+            ), 
+            title = "Dingus"
+        )
         
         self.bodies = {
             "account" : AccountInfo(self),
@@ -104,6 +110,7 @@ class CurrentTipHeader(urwid.ListBox):
         self.parent = parent
         _body = urwid.SimpleFocusListWalker([urwid.Text("\n Fetching network status...")])
         super().__init__(_body, **kwargs)
+        self.initialized = False
     
     def update_status(self, data: dict) -> None:
         if "data" not in data:
@@ -113,22 +120,14 @@ class CurrentTipHeader(urwid.ListBox):
         tip_btn = attr_button(
             text, 
             borders=False,
-            on_press=lambda btn: self.parent.emit_event(
-                "request_block", 
-                {"key": "height", "value": data['data']['height']}, 
-                ["user_input"]
-            )
+            on_press=lambda btn: self.request_and_switch(data['data']['height'])
         )
        
         text = f"Last finalized\nheight {data['data']['finalizedHeight']}"
         finalized_btn = attr_button(
             text, 
             borders=False,
-            on_press=lambda btn: self.parent.emit_event(
-                "request_block", 
-                {"key": "height", "value": data['data']['finalizedHeight']}, 
-                ["user_input"]
-            )
+            on_press=lambda btn: self.request_and_switch(data['data']['finalizedHeight'])
         )
         
         self.body[:] = [
@@ -137,6 +136,19 @@ class CurrentTipHeader(urwid.ListBox):
                     urwid.LineBox(tip_btn) 
             ])
         ]
+
+        if not self.initialized:
+            _header = urwid.LineBox(urwid.BoxAdapter(self, height=4), title = "Dingus")
+            self.parent.contents[0] = (_header, ("pack", None))
+            self.initialized = True
+    
+    def request_and_switch(self, height) -> None:
+        self.parent.emit_event(
+            "request_block", 
+            {"key": "height", "value": height}, 
+            ["user_input"]
+        )
+        self.parent.update_active_body("explorer")
     
     async def handle_event(self, event: Event) -> None:
         if event.name == "network_status_update":
@@ -171,17 +183,63 @@ class Explorer(urwid.ListBox):
         for k, v in data.items():
             btn = create_button(f"{v}")
             if k == "previousBlockId":
-                urwid.connect_signal(btn, 'click', lambda btn, id=v: self.parent.emit_event("request_block", {"key": "id", "value": id}, ["user_input"]))
+                urwid.connect_signal(
+                    btn, 
+                    'click', 
+                    lambda btn, id=v: self.parent.emit_event(
+                        "request_block", 
+                        {"key": "blockId", "value": id}, 
+                        ["user_input"]
+                    )
+                )
+
+            elif k == "maxHeightPreviouslyForged" or k == "maxHeightPrevoted":
+                urwid.connect_signal(
+                    btn, 
+                    'click', 
+                    lambda btn, height=v: self.parent.emit_event(
+                        "request_block", 
+                        {"key": "height", "value": height}, 
+                        ["user_input"]
+                    )
+                )
+            
             elif k == "generatorPublicKey":
                 address = keys.PublicKey(bytes.fromhex(v)).to_address().to_lsk32()
                 data = {"key": "address", "value": address, "response_name": "response_account_explorer"}
-                urwid.connect_signal(btn, 'click', lambda btn, id=v: self.parent.emit_event("request_account", data, ["user_input"]))
+                urwid.connect_signal(
+                    btn, 
+                    'click', 
+                    lambda btn, id=v: self.parent.emit_event(
+                        "request_account", 
+                        data, 
+                        ["user_input"]
+                    )
+                )
+
             elif k == "generatorUsername":
                 data = {"key": "username", "value": v, "response_name": "response_account_explorer"}
-                urwid.connect_signal(btn, 'click', lambda btn, id=v: self.parent.emit_event("request_account", data, ["user_input"]))
+                urwid.connect_signal(
+                    btn, 
+                    'click', 
+                    lambda btn, id=v: self.parent.emit_event(
+                        "request_account", 
+                        data, 
+                        ["user_input"]
+                    )
+                )
             elif k == "generatorAddress":
                 data = {"key": "address", "value": v, "response_name": "response_account_explorer"}
-                urwid.connect_signal(btn, 'click', lambda btn, id=v: self.parent.emit_event("request_account", data, ["user_input"]))
+                urwid.connect_signal(
+                    btn, 
+                    'click', 
+                    lambda btn, id=v: self.parent.emit_event(
+                        "request_account", 
+                        data, 
+                        ["user_input"]
+                    )
+                )
+
             btn = urwid.AttrMap(btn, None, focus_map="line")
             col = urwid.Columns([urwid.Text(f"\n  {k}:"), btn]) 
             columns.append(col)
@@ -211,13 +269,28 @@ class AccountInfo(frames.UiPile):
     def __init__(self, parent, **kwargs) -> None:
         self.parent = parent
         self.accounts = {}
-        new_act_btn = create_button("(N)ew", borders=False)
-        urwid.connect_signal(new_act_btn, 'click', self.prompt_new_account)
-        new_act_btn = urwid.AttrMap(new_act_btn, None, focus_map="line")
-        self.select_act_btn = create_button(f"(S)elect ({len(self.accounts.keys())})", borders=False)
-        urwid.connect_signal(self.select_act_btn, 'click', self.select_account)
-        select_act_btn = urwid.AttrMap(self.select_act_btn, None, focus_map="line")
-        _btns = urwid.Columns([urwid.LineBox(select_act_btn), urwid.LineBox(new_act_btn)])
+
+        new_act_btn = attr_button(
+            "(N)ew", 
+            borders=False, 
+            on_press = self.prompt_new_account
+        )
+
+        select_act_btn = attr_button(
+            f"(S)elect", 
+            borders=False,
+            on_press = self.select_account
+        )
+        import_act_btn = attr_button(
+            f"(I)mport", 
+            borders=False,
+            on_press = self.prompt_import_account
+        )
+        _btns = urwid.Columns([
+            urwid.LineBox(select_act_btn), 
+            urwid.LineBox(new_act_btn),
+            urwid.LineBox(import_act_btn)
+            ])
         
         _header = urwid.LineBox(urwid.Text(""))
         send_btn = attr_button(["Send LSK"], borders=False, on_press=self.prompt_send_lsk)
@@ -246,6 +319,8 @@ class AccountInfo(frames.UiPile):
             self.select_account()
         elif _input in ("n", "N"):
             self.prompt_new_account()
+        elif _input in ("i", "I"):
+            self.prompt_import_account()
         elif _input in ("c", "C"):
             if self.current_account:
                 utils.copy_to_clipboard(self.current_account)
@@ -285,8 +360,6 @@ class AccountInfo(frames.UiPile):
             self.select_account_btns.append(urwid.Columns([(16, btn), urwid.Text(f"\n{address}", align="center")]))
             data = {"key": "address", "value": address, "response_name": "response_account_info"}
             self.parent.emit_event("request_account", data, ["user_input"])
-
-        self.select_act_btn.set_label(f"(S)elect ({len(self.accounts.keys())})")
 
         if self.accounts and not self.current_account:
             self.current_account = list(self.accounts.keys())[0]
@@ -367,6 +440,7 @@ class AccountInfo(frames.UiPile):
 
     def destroy_prompt(self) -> None:
         self.parent.active_body = self
+        self.reset_base_body()
     
     def prompt_text(self, text: str = "There was an error", title: str = "Error") -> None:
         bottom_w = urwid.WidgetDisable(self)
@@ -383,6 +457,20 @@ class AccountInfo(frames.UiPile):
     def create_new_account(self, password: str) -> None:
         sk = utils.random_private_key()
         sk.to_json(password)
+        self.update_account_data()
+        address = sk.to_public_key().to_address().to_lsk32()
+        self.current_account = address
+        self.destroy_prompt()
+    
+    def prompt_import_account(self, btn = None) -> None:
+        bottom_w = urwid.WidgetDisable(self)
+        top_w = prompts.PassphrasePrompt(self.import_account, self.destroy_prompt)
+        _overlay = urwid.Overlay(top_w, bottom_w, "center", 40, ("relative", 0.5), 16)
+        self.parent.active_body = _overlay
+    
+    def import_account(self, password: str, passphrase: str) -> None:
+        sk = keys.PrivateKey.from_passphrase(passphrase)
+        sk.to_json(password)
         
         self.update_account_data()
         address = sk.to_public_key().to_address().to_lsk32()
@@ -396,9 +484,8 @@ class AccountInfo(frames.UiPile):
 
     async def handle_event(self, event: Event) -> None:
         if event.name == "network_status_update":
-            for address in self.accounts:
-                data = {"key": "address", "value": address, "response_name": "response_account_info"}
-                self.parent.emit_event("request_account", data, ["user_input"])
+            data = {"key": "address", "value": self.current_account, "response_name": "response_account_info"}
+            self.parent.emit_event("request_account", data, ["user_input"])
         elif event.name == "market_prices_update":
             for feed in event.data:
                 self.price_feeds[feed["code"]] = float(feed["rate"])

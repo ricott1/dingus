@@ -64,6 +64,48 @@ class PasswordPrompt(urwid.LineBox):
     def cancel(self, btn):
         self.cancel_callback()
 
+class PassphrasePrompt(urwid.LineBox):
+    def __init__(self, ok_callback: Callable[[str, str], None], cancel_callback: Callable[[], None]) -> None:
+        self.ok_callback = ok_callback
+        self.cancel_callback = cancel_callback
+
+        header_text = urwid.Text(('banner', 'Import Account'), align = 'center')
+        header = urwid.AttrMap(header_text, 'banner')
+
+        self.pwd_edit = urwid.Edit("Password $ ", mask="*")
+        pwd_filler = urwid.Filler(self.pwd_edit, valign = 'top')
+        pwd_padding = urwid.Padding(
+            pwd_filler,
+            left = 1,
+            right = 1
+        )
+        pwd_body = urwid.LineBox(pwd_padding)
+
+        self.passphrase_edit = urwid.Edit("Passphrase $ ", mask="*")
+        passphrase_filler = urwid.Filler(self.passphrase_edit, valign = 'top')
+        passphrase_padding = urwid.Padding(
+            passphrase_filler,
+            left = 1,
+            right = 1
+        )
+        passphrase_body = urwid.LineBox(passphrase_padding)
+
+        footer = urwid.Columns([
+            urwid.LineBox(attr_button("OK", on_press = self.ok, borders=False)), 
+            urwid.LineBox(attr_button("Cancel", on_press = self.cancel, borders=False))
+        ])
+
+        _widgets = [("pack", header), ("weight", 1, pwd_body), ("weight", 2, passphrase_body), ("pack", footer)]
+        super().__init__(frames.UiPile(_widgets, focus_item=3))
+
+    def ok(self, btn):
+        pwd = self.pwd_edit.get_edit_text()
+        passphrase = self.passphrase_edit.get_edit_text()
+        self.ok_callback(pwd, passphrase)
+    
+    def cancel(self, btn):
+        self.cancel_callback()
+
 
 class SendPrompt(urwid.LineBox):
     def __init__(self, ok_callback: Callable[[dict], None], cancel_callback: Callable[[], None]) -> None:
