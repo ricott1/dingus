@@ -7,10 +7,10 @@ import dingus.urwid_tui.frames as frames
 from dingus.constants import LSK
 
 class TextPrompt(urwid.LineBox):
-    def __init__(self, error_text: str, ok_callback: Callable[[], None]) -> None:
+    def __init__(self, error_text: str, title: str, ok_callback: Callable[[], None]) -> None:
         self.ok_callback = ok_callback
 
-        header_text = urwid.Text(('banner', 'Error'), align = 'center')
+        header_text = urwid.Text(('banner', title), align = 'center')
         header = urwid.AttrMap(header_text, 'banner')
 
         error = urwid.Text(error_text)

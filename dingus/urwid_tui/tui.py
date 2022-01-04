@@ -319,7 +319,6 @@ class AccountInfo(frames.UiPile):
         self.parent.active_body = _overlay
     
     def send_lsk(self, params: dict) -> None:
-        input(params)
         if not utils.validate_lisk32_address(params["recipientAddress"]):
             self.prompt_text("Invalid lsk address")
             return
@@ -353,7 +352,6 @@ class AccountInfo(frames.UiPile):
         }
 
         trs = transaction.BalanceTransfer.fromDict(tx_params)
-        input(trs)
 
         try:
             filename = self.current_account + ".json"
@@ -372,7 +370,7 @@ class AccountInfo(frames.UiPile):
     
     def prompt_text(self, text: str = "There was an error", title: str = "Error") -> None:
         bottom_w = urwid.WidgetDisable(self)
-        top_w = prompts.TextPrompt(text, self.destroy_prompt, title=title)
+        top_w = prompts.TextPrompt(text, title, self.destroy_prompt)
         _overlay = urwid.Overlay(top_w, bottom_w, "center", 36, ("relative", 0.5), 10)
         self.parent.active_body = _overlay
 
