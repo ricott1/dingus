@@ -108,7 +108,7 @@ class TUI(component.ComponentMixin, urwid.Pile):
 class CurrentTipHeader(urwid.ListBox):
     def __init__(self, parent, **kwargs) -> None:
         self.parent = parent
-        _body = urwid.SimpleFocusListWalker([urwid.Text("\n Fetching network status...")])
+        _body = urwid.SimpleFocusListWalker([urwid.Text("\n Fetching network status...", align = "center")])
         super().__init__(_body, **kwargs)
         self.initialized = False
     
@@ -303,23 +303,41 @@ class AccountInfo(frames.UiPile):
             ])
         
         _header = urwid.LineBox(urwid.Text(""))
-        send_btn = attr_button(["Send LSK"], borders=False, on_press=self.prompt_send_lsk)
 
-        self.base_body = urwid.ListBox(urwid.SimpleFocusListWalker([urwid.LineBox(send_btn)]))
+        self.send_btn = attr_button(
+            ["Send LSK"], 
+            borders=False, 
+            on_press=self.prompt_send_lsk
+        )
+
+        self.remove_bookmark_btn = attr_button(
+            ["Remove Bookmark"], 
+            borders=False, 
+            on_press=self.remove_bookmark
+        )
+
+        self.base_body = urwid.ListBox(urwid.SimpleFocusListWalker([]))
         
         _widgets = [("pack", _header), ("pack", _btns), self.base_body]
         super().__init__(_widgets, **kwargs)
-        self._current_account = ""
+        self._current_address = None
+        self.update_header()
         self.select_account_btns = []
         self.price_feeds = {"LSK_EUR" : 0}
 
     @property
-    def current_account(self) -> str:
-        return self._current_account
-    @current_account.setter
-    def current_account(self, value: str) -> None:
-        self._current_account = value
+    def current_address(self) -> str:
+        return self._current_address
+    @current_address.setter
+    def current_address(self, value: str) -> None:
+        self._current_address = value
         self.update_header()
+    
+    @property
+    def current_account(self) -> dict | None:
+        if self.current_address not in self.accounts:
+            return None
+        return self.accounts[self.current_address]
         
     def start(self) -> None:
         self.update_account_data()
@@ -334,69 +352,108 @@ class AccountInfo(frames.UiPile):
         elif _input in ("b", "B"):
             self.prompt_bookmark_account()
         elif _input in ("c", "C"):
-            if self.current_account:
-                utils.copy_to_clipboard(self.current_account)
+            if self.current_address:
+                utils.copy_to_clipboard(self.current_address)
 
     def update_account_data(self) -> None:
-        accounts = os.listdir("{os.environ['DINGUS_BASE_PATH']}/accounts")
+        accounts = os.listdir(f"{os.environ['DINGUS_BASE_PATH']}/accounts")
         for filename in accounts:
-            address = filename.split(".")[0]
-            if address in self.accounts:
-                continue
-            try:
-                with open(f"{os.environ['DINGUS_BASE_PATH']}/accounts/{filename}", "r") as f:
-                    data = json.loads(f.read())
-                public_key = keys.PublicKey(bytes.fromhex(data["public_key"]))
-            except Exception as e:
-                print(e)
-                continue
+            if filename.startswith("bookmark"):
+                address = filename.split(".")[1]
+                
+                if address in self.accounts:
+                    continue
 
-            self.accounts[address] = {
-                "balance": 0,
-                "public_key": public_key,
-                "avatar": rgb_list_to_text(public_key.to_address().to_avatar()),
-                "nonce": 0
-            }
+                self.accounts[address] = {
+                    "balance": 0,
+                    "public_key": b"",
+                    "avatar": rgb_list_to_text(utils.lisk32_to_avatar(address)),
+                    "nonce": 0,
+                    "bookmark": True
+                }
+
+            else:
+                address = filename.split(".")[0]
+            
+                if address in self.accounts:
+                    continue
+            
+                try:
+                    with open(f"{os.environ['DINGUS_BASE_PATH']}/accounts/{filename}", "r") as f:
+                        data = json.loads(f.read())
+                    public_key = keys.PublicKey(bytes.fromhex(data["public_key"]))
+                except Exception as e:
+                    print(e)
+                    continue
+
+                self.accounts[address] = {
+                    "balance": 0,
+                    "public_key": public_key,
+                    "avatar": rgb_list_to_text(utils.lisk32_to_avatar(address)),
+                    "nonce": 0,
+                    "bookmark": False
+                }
             
             avatar = self.accounts[address]["avatar"]
             def select_btn(addr):
                 self.reset_base_body()
-                self.current_account = addr
+                self.current_address = addr
                 self.focus_position = 1
-                
+            
             btn = attr_button(
                 ["\n"] + avatar + ["\nselect"], 
                 borders = False, 
                 on_press = lambda btn, acc=address : select_btn(acc)
             )
+            
             self.select_account_btns.append(urwid.Columns([(16, btn), urwid.Text(f"\n{address}", align="center")]))
             data = {"key": "address", "value": address, "response_name": "response_account_info"}
             self.parent.emit_event("request_account", data, ["user_input"])
-
-        if self.accounts and not self.current_account:
-            self.current_account = list(self.accounts.keys())[0]
+        
+        if self.accounts:
+            if not self.current_address:
+                self.current_address = list(self.accounts.keys())[0]
+        else:
+            self.current_address = None
     
     def reset_base_body(self):
         self.contents[2] = (self.base_body, ("weight", 1))
 
     def update_header(self) -> None:
-        if not self.current_account:
-            header_data = urwid.Text("No account data, create a new one first.", align= "center")
-        
+        if not self.current_address:
+            header_data = urwid.Text("\n\n\nNo account data, create a new one first.\n\n\n", align= "center")
         else:
-            avatar = self.accounts[self.current_account]["avatar"]
-            btn = attr_button(["\n"] + avatar + ["\n(C)opy"], borders=False, on_press=lambda btn : utils.copy_to_clipboard(self.current_account))
-            balance = float(self.accounts[self.current_account]["balance"]) / LSK
-            lsk_to_eur = balance * self.price_feeds["LSK_EUR"]
-            header_data = urwid.Columns([
-                (16, btn), 
-                urwid.Text(f"\n\n{self.current_account}\n\n{balance} LSK = {lsk_to_eur:.2f} EUR", align="center")
-            ])
+            avatar = self.accounts[self.current_address]["avatar"]
+            btn = attr_button(
+                ["\n"] + avatar + ["\n(C)opy"], 
+                borders = False, 
+                on_press = lambda btn : utils.copy_to_clipboard(self.current_address)
+            )
 
+            top = urwid.Text(f"\n{self.current_address}\n", align = "center")
+            balance = float(self.accounts[self.current_address]["balance"]) / LSK
+            lsk_to_eur = balance * self.price_feeds["LSK_EUR"]
+
+            if self.current_account["bookmark"]:
+                    bottom = urwid.Columns([
+                    urwid.LineBox(self.remove_bookmark_btn),
+                    urwid.Text(f"\n{balance} LSK = {lsk_to_eur:.2f} EUR", align="center")
+                ])
+            else:
+                bottom = urwid.Columns([
+                    urwid.LineBox(self.send_btn),
+                    urwid.Text(f"\n{balance} LSK = {lsk_to_eur:.2f} EUR", align="center")
+                ])
+
+            header_data = urwid.Columns([
+                (16, btn),
+                urwid.Pile([top, bottom])
+            ])
+            
         self.contents[0] = (urwid.LineBox(header_data), ("pack", None))
 
     def prompt_send_lsk(self, btn = None) -> None:
-        if not self.current_account:
+        if not self.current_address:
             return
         bottom_w = urwid.WidgetDisable(self)
         top_w = prompts.SendPrompt(self.send_lsk, self.destroy_prompt)
@@ -404,6 +461,9 @@ class AccountInfo(frames.UiPile):
         self.parent.active_body = _overlay
     
     def send_lsk(self, params: dict) -> None:
+        if not self.current_address:
+            return
+            
         if not utils.validate_lisk32_address(params["recipientAddress"]):
             self.prompt_text("Invalid lsk address")
             return
@@ -426,8 +486,8 @@ class AccountInfo(frames.UiPile):
             return
 
         tx_params = {
-            "senderPublicKey": self.accounts[self.current_account]["public_key"].encode(),
-            "nonce": self.accounts[self.current_account]["nonce"],
+            "senderPublicKey": self.accounts[self.current_address]["public_key"].encode(),
+            "nonce": self.accounts[self.current_address]["nonce"],
             "fee": int(fee * LSK),
             "asset": {
                 "amount": int(amount * LSK),
@@ -439,13 +499,13 @@ class AccountInfo(frames.UiPile):
         trs = transaction.BalanceTransfer.fromDict(tx_params)
 
         try:
-            filename = self.current_account + ".json"
+            filename = self.current_address + ".json"
             private_key = keys.PrivateKey.from_json(filename, params["password"])
             trs.sign(private_key)
             trs.send()
             # Increase nonce here in case user send multiple transaction
             # within one block. Real value will be overwritten on next block.
-            self.accounts[self.current_account]["nonce"] += 1
+            self.accounts[self.current_address]["nonce"] += 1
             self.prompt_text("Transaction sent!", title="Success")
         except Exception as e:
             self.prompt_text("Error:", e)
@@ -468,10 +528,10 @@ class AccountInfo(frames.UiPile):
 
     def create_new_account(self, password: str) -> None:
         sk = utils.random_private_key()
-        sk.to_json(password)
+        sk.store(password)
         self.update_account_data()
         address = sk.to_public_key().to_address().to_lsk32()
-        self.current_account = address
+        self.current_address = address
         self.destroy_prompt()
     
     def prompt_import_account(self, btn = None) -> None:
@@ -482,11 +542,11 @@ class AccountInfo(frames.UiPile):
     
     def import_account(self, password: str, passphrase: str) -> None:
         sk = keys.PrivateKey.from_passphrase(passphrase)
-        sk.to_json(password)
+        sk.store(password)
         
         self.update_account_data()
         address = sk.to_public_key().to_address().to_lsk32()
-        self.current_account = address
+        self.current_address = address
         self.destroy_prompt()
     
     def prompt_bookmark_account(self, btn = None) -> None:
@@ -500,11 +560,16 @@ class AccountInfo(frames.UiPile):
             self.prompt_text("Invalid lsk address")
             return
         
-        with open(f"{os.environ['DINGUS_BASE_PATH']}/bookmarks.txt", "a") as f:
-            f.write(address)
-
-        self.current_account = address
+        utils.store_bookmark(address)
+        self.update_account_data()
+        self.current_address = address
         self.destroy_prompt()
+    
+    def remove_bookmark(self, btn = None) -> None:
+        utils.remove_bookmark(self.current_address)
+        del self.accounts[self.current_address]
+        self.current_address = None
+        self.update_account_data()
 
     def select_account(self, btn = None) -> None:
         if self.selecting_account:
@@ -518,12 +583,13 @@ class AccountInfo(frames.UiPile):
 
     async def handle_event(self, event: Event) -> None:
         if event.name == "network_status_update":
-            data = {"key": "address", "value": self.current_account, "response_name": "response_account_info"}
+            data = {"key": "address", "value": self.current_address, "response_name": "response_account_info"}
             self.parent.emit_event("request_account", data, ["user_input"])
         elif event.name == "market_prices_update":
+            if event.data:
+                self.update_header()
             for feed in event.data:
                 self.price_feeds[feed["code"]] = float(feed["rate"])
-                self.update_header()
         elif event.name == "response_account_info" and "summary" in event.data:
             acc = event.data["summary"]["address"]
             if event.data["summary"]["publicKey"]:
@@ -535,3 +601,4 @@ class AccountInfo(frames.UiPile):
 
                
 
+#lskhweewzmz9x2t5r65y4dr4t6uyarfe6h7j878dd

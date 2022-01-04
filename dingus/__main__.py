@@ -27,7 +27,7 @@ def start():
 
     args = parser.parse_args()
     os.environ["DINGUS_NETWORK"] = args.network[0]
-    os.environ["DINGUS_BASE_PATH"] = args.accounts_path[0]
+    os.environ["DINGUS_BASE_PATH"] = args.base_path[0]
     Path(f"{os.environ['DINGUS_BASE_PATH']}/accounts").mkdir(parents=True, exist_ok=True)
 
     os.environ["DINGUS_NETWORK_ID"] = ""

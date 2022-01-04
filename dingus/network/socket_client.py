@@ -27,13 +27,19 @@ class DingusClient(component.ComponentMixin, socketio.AsyncClient):
                 logging.error(f"Connection error: {err}")
         
         status = api.network_status()
-        self.emit_event("network_status_update", status, ["api_response"])
-        os.environ["DINGUS_NETWORK_ID"] = status["data"]["networkIdentifier"]
-        os.environ["DINGUS_BLOCK_TIME"] = str(status["data"]["blockTime"])
-        self.last_update_time = status["meta"]["lastUpdate"]
+        if "data" in status:
+            self.emit_event("network_status_update", status, ["api_response"])
+            os.environ["DINGUS_NETWORK_ID"] = status["data"]["networkIdentifier"]
+            os.environ["DINGUS_BLOCK_TIME"] = str(status["data"]["blockTime"])
+            self.last_update_time = status["meta"]["lastUpdate"]
 
         fees = api.network_fees()
-        os.environ["DINGUS_MIN_FEE_PER_BYTE"] = str(fees["data"]["minFeePerByte"])
+        if "data" in fees:
+            os.environ["DINGUS_MIN_FEE_PER_BYTE"] = str(fees["data"]["minFeePerByte"])
+        prices= api.market_prices()
+        if "data" in prices:
+            self.emit_event("market_prices_update", prices["data"], ["api_response"])
+
         
     def stop(self) -> None:
         if self.connected:
