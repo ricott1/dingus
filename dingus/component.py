@@ -16,7 +16,7 @@ class ComponentMixin(object):
     async def start(self) -> None:
         raise NotImplementedError
     
-    def stop(self) -> None:
+    async def stop(self) -> None:
         raise NotImplementedError
     
     async def handle_event(self, event: dict) -> None:

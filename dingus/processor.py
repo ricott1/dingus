@@ -16,7 +16,7 @@ class Processor(object):
        
     async def stop(self, *args):
         for comp in self.components:
-            comp.stop()
+            await comp.stop()
         tasks = asyncio.all_tasks(self.event_loop)
         if tasks:
             print("Terminating tasks", tasks)

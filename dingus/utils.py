@@ -1,6 +1,7 @@
 # from nacl.hash import sha256 
 from hashlib import sha256 
 import os
+import json
 import pyperclip
 from pathlib import Path
 
@@ -38,14 +39,23 @@ def lisk32_to_avatar(base32_address: str) -> list[tuple[int]]:
         avatar.append((_r, _g, _b))
     return avatar
 
-def store_bookmark(address: str):
+def store_bookmark(name: str, address: str) -> None:
     filename = f"bookmark.{address}.json"
     with open(f"{os.environ['DINGUS_BASE_PATH']}/accounts/{filename}", "w") as f:
-        f.write("")
+        f.write(json.dumps({"name": name}))
 
-def remove_bookmark(address: str):
+def remove_bookmark(address: str) -> None:
     filename = f"{os.environ['DINGUS_BASE_PATH']}/accounts/bookmark.{address}.json"
     Path(filename).unlink(missing_ok=True)
+
+def name_from_json(filename: str) -> str:
+    with open(f"{os.environ['DINGUS_BASE_PATH']}/accounts/{filename}", "r") as f:
+        data = json.loads(f.read())
+
+    if "name" not in data:
+        return ""
+   
+    return data["name"]
 
 def copy_to_clipboard(text: str) -> None:
     pyperclip.copy(text)

@@ -12,3 +12,5 @@ EVENT_TAGS = [
     "service_subscription",
     "api_response"
 ]
+
+BALANCE_TRANSFER_LENGTH = 120

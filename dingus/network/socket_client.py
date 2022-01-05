@@ -45,7 +45,7 @@ class DingusClient(component.ComponentMixin, socketio.AsyncClient):
         if self.connected:
             logging.info("Disconnecting Dingus socket client")
             try:
-                asyncio.create_task(self.disconnect())
+                asyncio.wait(self.disconnect())
             except Exception as e:
                 print(e)
 
@@ -54,15 +54,27 @@ class DingusClient(component.ComponentMixin, socketio.AsyncClient):
             block = api.fetch_block(event.data["key"], event.data["value"])
             if "data" in block:
                 self.emit_event("response_block", block["data"][0], ["api_response"])
-            else:
-                input(block)
         elif event.name == "request_account":
             account = api.fetch_account(event.data["key"], event.data["value"])
-            name = event.data["response_name"]
+            if "response_name" in event.data:
+                name = event.data["response_name"]
+            else:
+                name = "response_account"
+            
             if "data" in account:
                 self.emit_event(name, account["data"][0], ["api_response"])
             else:
-                self.emit_event(name, {}, ["api_response"])
+                default = {
+                    "address": "",
+                    "balance": "0",
+                    "username": "",
+                    "publicKey": "",
+                    "isDelegate": "false",
+                    "isMultisignature": "false"
+
+                }
+                default[event.data["key"]] = event.data["value"]
+                self.emit_event(name, {"summary": default}, ["api_response"])
 
     def handle_new_block(self, response: dict) -> None:
         status = api.network_status()

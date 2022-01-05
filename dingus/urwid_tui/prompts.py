@@ -4,7 +4,7 @@ import os
 
 from dingus.urwid_tui.utils import attr_button
 import dingus.urwid_tui.frames as frames
-from dingus.constants import LSK
+from dingus.constants import LSK, BALANCE_TRANSFER_LENGTH
 
 
 class Prompt(urwid.LineBox):
@@ -60,34 +60,53 @@ class TextPrompt(Prompt):
         self.ok_callback()
 
 class NewAccountPrompt(Prompt):
-    def __init__(self, ok_callback: Callable[[str], None], cancel_callback: Callable[[], None]) -> None:
+    def __init__(self, ok_callback: Callable[[str, str], None], cancel_callback: Callable[[], None]) -> None:
         self.ok_callback = ok_callback
         self.cancel_callback = cancel_callback
 
-        self.pwd_edit = urwid.Edit("", mask="*")
-        body_filler = urwid.Filler(self.pwd_edit, valign = "top")
-        body_padding = urwid.Padding(
-            body_filler,
+        self.name_edit = urwid.Edit("", edit_text = "MyAccount #")
+        name_filler = urwid.Filler(self.name_edit, valign = "top")
+        name_padding = urwid.Padding(
+            name_filler,
             left = 1,
             right = 1
         )
-        body = urwid.LineBox(body_padding, title = "Password")
+        name_body = urwid.LineBox(name_padding, title = "Name")
+
+        self.pwd_edit = urwid.Edit("", mask="*")
+        pwd_filler = urwid.Filler(self.pwd_edit, valign = "top")
+        pwd_padding = urwid.Padding(
+            pwd_filler,
+            left = 1,
+            right = 1
+        )
+        pwd_body = urwid.LineBox(pwd_padding, title = "Password")
 
         super().__init__(
             "New Account", 
-            [body], 
+            [name_body, pwd_body], 
             ok_callback, 
             cancel_callback = cancel_callback, 
             focus_item=1
         )
 
     def ok(self, btn):
+        name = self.name_edit.get_edit_text()
         pwd = self.pwd_edit.get_edit_text()
-        self.ok_callback(pwd)
+        self.ok_callback(name, pwd)
     
 
 class ImportPrompt(Prompt):
-    def __init__(self, ok_callback: Callable[[str, str], None], cancel_callback: Callable[[], None]) -> None:
+    def __init__(self, ok_callback: Callable[[str, str, str], None], cancel_callback: Callable[[], None]) -> None:
+        self.name_edit = urwid.Edit("", edit_text = "MyAccount #")
+        name_filler = urwid.Filler(self.name_edit, valign = "top")
+        name_padding = urwid.Padding(
+            name_filler,
+            left = 1,
+            right = 1
+        )
+        name_body = urwid.LineBox(name_padding, title = "Name")
+        
         self.pwd_edit = urwid.Edit("", mask="*")
         pwd_filler = urwid.Filler(self.pwd_edit, valign = "top")
         pwd_padding = urwid.Padding(
@@ -108,20 +127,30 @@ class ImportPrompt(Prompt):
 
         super().__init__(
             "Import Account", 
-            [("weight", 2, passphrase_body), ("weight", 1, pwd_body)], 
+            [("weight", 1, name_body), ("weight", 2, passphrase_body), ("weight", 1, pwd_body)], 
             ok_callback, 
             cancel_callback = cancel_callback, 
             focus_item=1
         )
 
     def ok(self, btn):
+        name = self.name_edit.get_edit_text()
         pwd = self.pwd_edit.get_edit_text()
         passphrase = self.passphrase_edit.get_edit_text()
-        self.ok_callback(pwd, passphrase)
+        self.ok_callback(name, pwd, passphrase)
 
 
 class BookmarkPrompt(Prompt):
-    def __init__(self, ok_callback: Callable[[str], None], cancel_callback: Callable[[], None]) -> None:
+    def __init__(self, ok_callback: Callable[[str, str], None], cancel_callback: Callable[[], None]) -> None:
+        self.name_edit = urwid.Edit("", edit_text = "Bookmark #")
+        name_filler = urwid.Filler(self.name_edit, valign = "top")
+        name_padding = urwid.Padding(
+            name_filler,
+            left = 1,
+            right = 1
+        )
+        name_body = urwid.LineBox(name_padding, title = "Name")
+
         self.address_edit = urwid.Edit("")
         body_filler = urwid.Filler(self.address_edit, valign = "top")
         body_padding = urwid.Padding(
@@ -133,15 +162,16 @@ class BookmarkPrompt(Prompt):
 
         super().__init__(
             "Bookmark", 
-            [body], 
+            [name_body, body], 
             ok_callback, 
             cancel_callback = cancel_callback, 
             focus_item=1
         )
 
     def ok(self, btn):
+        name = self.name_edit.get_edit_text()
         address = self.address_edit.get_edit_text()
-        self.ok_callback(address)
+        self.ok_callback(name, address)
     
 
 class SendPrompt(Prompt):
@@ -149,7 +179,7 @@ class SendPrompt(Prompt):
         self.recipient_edit = urwid.Edit("Recipient: ")
         self.amount_edit = urwid.Edit("Amount: LSK ", edit_text="0")
         self.data_edit = urwid.Edit("Data: ")
-        self.fee_edit = urwid.Edit("Fee: LSK ", edit_text = f"{float(int(os.environ['DINGUS_MIN_FEE_PER_BYTE']) / LSK):.2f}")
+        self.fee_edit = urwid.Edit("Fee: LSK ", edit_text = f"{float(BALANCE_TRANSFER_LENGTH *int(os.environ['DINGUS_MIN_FEE_PER_BYTE']) / LSK):.4f}")
         self.pwd_edit = urwid.Edit("Password: ", mask="*")
         params = urwid.ListBox(urwid.SimpleFocusListWalker([
             self.recipient_edit,

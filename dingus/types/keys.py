@@ -30,12 +30,12 @@ class PrivateKey(SigningKey):
     @classmethod
     def from_json(cls, filename: str, password: str = "") -> PrivateKey:
         with open(f"{os.environ['DINGUS_BASE_PATH']}/accounts/{filename}", "r") as f:
-            cipherdata = json.loads(f.read())
+            data = json.loads(f.read())
     
-        ciphertext = bytes.fromhex(cipherdata["ciphertext"])
-        salt = bytes.fromhex(cipherdata["salt"])
-        iv = bytes.fromhex(cipherdata["iv"])
-        iteration_count = cipherdata["iteration_count"]
+        ciphertext = bytes.fromhex(data["ciphertext"])
+        salt = bytes.fromhex(data["salt"])
+        iv = bytes.fromhex(data["iv"])
+        iteration_count = data["iteration_count"]
         key = hashlib.pbkdf2_hmac('sha256', str.encode(password), salt, iteration_count)
         
         # Decryption with AES-256-CBC
@@ -50,7 +50,7 @@ class PrivateKey(SigningKey):
     def to_public_key(self) -> PublicKey:
         return PublicKey(self.verify_key._key)
     
-    def store(self, password: str = "", iteration_count: int = 1000000) -> None:
+    def store(self, password: str = "", name: str = "", iteration_count: int = 1000000) -> None:
         salt = os.urandom(8)
         iv = os.urandom(16)
         key = hashlib.pbkdf2_hmac('sha256', str.encode(password), salt, iteration_count)
@@ -60,16 +60,16 @@ class PrivateKey(SigningKey):
         ciphertext = encrypter.feed(self.encode())
         ciphertext += encrypter.feed()
 
-
-        cipherdata = {
+        data = {
                 "ciphertext": ciphertext.hex(),
                 "salt": salt.hex(),
                 "iv": iv.hex(),
                 "iteration_count": iteration_count,
-                "public_key": self.to_public_key().encode().hex()
+                "public_key": self.to_public_key().encode().hex(),
+                "name": name
         }
         filename = f"{self.to_public_key().to_address().to_lsk32()}.json"
         with open(f"{os.environ['DINGUS_BASE_PATH']}/accounts/{filename}", "w") as f:
-            f.write(json.dumps(cipherdata))
+            f.write(json.dumps(data))
 
 
