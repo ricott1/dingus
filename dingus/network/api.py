@@ -24,7 +24,7 @@ def fetch_account(key: str, value: str) -> dict:
     r = requests.get(url)
     return r.json()
 
-def send_tx(hex_trs: str) -> dict:
+def send_transaction(hex_trs: str) -> dict:
     net = os.environ["DINGUS_NETWORK"]
     endpoint = ENDPOINTS[net]
     url = f'{endpoint}/api/v2/transactions?transaction={hex_trs}'

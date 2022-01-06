@@ -37,5 +37,5 @@ def start():
     os.environ["DINGUS_NETWORK_ID"] = ""
     os.environ["DINGUS_BLOCK_TIME"] = "10"
     os.environ["DINGUS_MIN_FEE_PER_BYTE"] = "0"
-    
+
     processor = Processor()

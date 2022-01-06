@@ -189,14 +189,21 @@ class SendPrompt(Prompt):
             self.data_edit,
             urwid.Text(""),
             self.fee_edit,
-            urwid.Text(""),
-            self.pwd_edit
         ]))
         body = urwid.LineBox(params, title = "Parameters")
 
+        self.pwd_edit = urwid.Edit("", mask="*")
+        pwd_filler = urwid.Filler(self.pwd_edit, valign = "top")
+        pwd_padding = urwid.Padding(
+            pwd_filler,
+            left = 1,
+            right = 1
+        )
+        pwd_body = urwid.LineBox(pwd_padding, title = "Password")
+
         super().__init__(
             "Send LSK", 
-            [body], 
+            [("weight", 3, body), ("weight", 1, pwd_body)], 
             ok_callback, 
             cancel_callback = cancel_callback, 
             focus_item=1

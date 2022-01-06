@@ -5,6 +5,7 @@ import hashlib
 import pyaes
 import json
 from nacl.signing import SigningKey, VerifyKey
+from nacl.encoding import HexEncoder
 
 import dingus.constants as constants
 import dingus.utils as utils
@@ -21,6 +22,9 @@ class Address(bytes):
 class PublicKey(VerifyKey):
     def to_address(self) -> Address:
         return Address(utils.hash(self.encode())[:20])
+    
+    def hexbytes(self) -> bytes:
+        return bytes(self)
 
 class PrivateKey(SigningKey):
     @classmethod
@@ -50,7 +54,10 @@ class PrivateKey(SigningKey):
     def to_public_key(self) -> PublicKey:
         return PublicKey(self.verify_key._key)
     
-    def store(self, password: str = "", name: str = "", iteration_count: int = 1000000) -> None:
+    def hexbytes(self) -> bytes:
+        return bytes(self)
+    
+    def encrypt(self, password: str = "", iteration_count: int = 1000000) -> dict:
         salt = os.urandom(8)
         iv = os.urandom(16)
         key = hashlib.pbkdf2_hmac('sha256', str.encode(password), salt, iteration_count)
@@ -59,17 +66,14 @@ class PrivateKey(SigningKey):
         encrypter = pyaes.Encrypter(pyaes.AESModeOfOperationCBC(key, iv))
         ciphertext = encrypter.feed(self.encode())
         ciphertext += encrypter.feed()
-
         data = {
                 "ciphertext": ciphertext.hex(),
                 "salt": salt.hex(),
                 "iv": iv.hex(),
                 "iteration_count": iteration_count,
-                "public_key": self.to_public_key().encode().hex(),
-                "name": name
+                "public_key": self.to_public_key().encode().hex()
         }
-        filename = f"{self.to_public_key().to_address().to_lsk32()}.json"
-        with open(f"{os.environ['DINGUS_BASE_PATH']}/accounts/{filename}", "w") as f:
-            f.write(json.dumps(data))
+
+        return data
 
 

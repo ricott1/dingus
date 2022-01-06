@@ -4,6 +4,7 @@ import os
 import json
 import pyperclip
 from pathlib import Path
+import logging
 
 import dingus.types.keys as keys
 from dingus.constants import ADDRESS_LENGTH, PUB_KEY_LENGTH, SEED_LENGTH, LISK32_CHARSET, DEFAULT_LISK32_ADDRESS_PREFIX, LISK32_ADDRESS_LENGTH
@@ -39,23 +40,68 @@ def lisk32_to_avatar(base32_address: str) -> list[tuple[int]]:
         avatar.append((_r, _g, _b))
     return avatar
 
-def store_bookmark(name: str, address: str) -> None:
-    filename = f"bookmark.{address}.json"
-    with open(f"{os.environ['DINGUS_BASE_PATH']}/accounts/{filename}", "w") as f:
-        f.write(json.dumps({"name": name}))
-
-def remove_bookmark(address: str) -> None:
-    filename = f"{os.environ['DINGUS_BASE_PATH']}/accounts/bookmark.{address}.json"
-    Path(filename).unlink(missing_ok=True)
-
-def name_from_json(filename: str) -> str:
-    with open(f"{os.environ['DINGUS_BASE_PATH']}/accounts/{filename}", "r") as f:
-        data = json.loads(f.read())
-
+def save_account(filename: str, data: dict) -> None:
+    if "balance" not in data:
+        data["balance"] = 0
+    if "public_key" not in data:
+        data["public_key"] = ""
+    else:
+        data["public_key"] = data["public_key"].hex()
+    if "nonce" not in data:
+        data["nonce"] = 0
     if "name" not in data:
-        return ""
-   
-    return data["name"]
+        data["name"] = ""
+        
+    if "ciphertext" in data \
+        and "salt" in data \
+        and "iv" in data \
+        and "iteration_count" in data:
+        data["bookmark"] = False
+    else:
+        data["bookmark"] = True
+
+    try:
+        with open(f"{os.environ['DINGUS_BASE_PATH']}/accounts/{filename}", "w") as f:
+            f.write(json.dumps(data))
+    except Exception as err:
+        logging.error(f"utils.save_account {err}")
+        raise err
+
+def load_account(filename: str) -> dict:
+    try:
+        with open(f"{os.environ['DINGUS_BASE_PATH']}/accounts/{filename}", "r") as f:
+            data = json.load(f)
+    except Exception as err:
+        logging.error(f"utils.load_account {err}")
+        return {}
+
+    if "address" not in data:
+        return {}
+
+    if "balance" not in data:
+        data["balance"] = 0
+    if "public_key" not in data:
+        data["public_key"] = b""
+    else:
+        data["public_key"] = bytes.fromhex(data["public_key"])
+    if "nonce" not in data:
+        data["nonce"] = 0
+    if "name" not in data:
+        data["name"] = ""
+        
+    if "ciphertext" in data \
+        and "salt" in data \
+        and "iv" in data \
+        and "iteration_count" in data:
+        data["bookmark"] = False
+    else:
+        data["bookmark"] = True
+    
+    return data
+
+def delete_account(filename: str) -> None:
+    filename = f"{os.environ['DINGUS_BASE_PATH']}/accounts/{filename}"
+    Path(filename).unlink(missing_ok=True)
 
 def copy_to_clipboard(text: str) -> None:
     pyperclip.copy(text)
