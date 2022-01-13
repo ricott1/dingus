@@ -17,6 +17,7 @@ python-socketio = {extras = ["asyncio_client"], version = "^5.5.0"}
 pyaes = "^1.6.1"
 
 [tool.poetry.dev-dependencies]
+pytest = "^6.2.5"
 
 [tool.poetry.scripts]
 dingus = "dingus.__main__:start"

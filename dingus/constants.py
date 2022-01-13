@@ -7,6 +7,9 @@ DEFAULT_LISK32_ADDRESS_PREFIX = "lsk"
 LISK32_ADDRESS_LENGTH = 41
 LISK32_CHARSET = "zxvcpmbn3465o978uyrtkqew2adsjhfg"
 
+EDSA_SIGNATURE_LENGTH = 64
+EDSA_PUBLIC_KEY_LENGTH = 32
+
 EVENT_TAGS = [
     "user_input",
     "service_subscription",
