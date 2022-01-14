@@ -364,7 +364,7 @@ class AccountInfo(frames.UiPile):
             urwid.LineBox(bookmark_act_btn)
             ])
         
-        _header = urwid.LineBox(urwid.Text(""))
+        _header = urwid.LineBox(urwid.Text(""), title= "Account")
 
         self.send_btn = attr_button(
             ["\nSend LSK\n"], 
@@ -486,7 +486,7 @@ class AccountInfo(frames.UiPile):
                 urwid.Pile([top, bottom])
             ])
             
-        self.contents[0] = (urwid.LineBox(header_data), ("pack", None))
+        self.contents[0] = (urwid.LineBox(header_data, title= "Account"), ("pack", None))
 
     def prompt_send_lsk(self, btn = None) -> None:
         if not self.active_address:
