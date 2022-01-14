@@ -30,21 +30,22 @@ def random_public_key() -> keys.PublicKey:
 def random_private_key() -> keys.PrivateKey:
     return keys.PrivateKey(os.urandom(SEED_LENGTH)) 
 
-def lisk32_to_avatar(base32_address: str) -> list[tuple[int]]:
-    address = get_address_from_lisk32_address(base32_address)
-    avatar = []
-    r, g, b = [hash(bytes.fromhex(f"0{i}") + address) for i in range(3)]
-    color_bin_size = 16
-    for i in range(0, len(r), 2):
-        _r = int.from_bytes(r[i:i+1], "big")//color_bin_size*color_bin_size
-        _g = int.from_bytes(g[i:i+1], "big")//color_bin_size*color_bin_size
-        _b = int.from_bytes(b[i:i+1], "big")//color_bin_size*color_bin_size
-        avatar.append((_r, _g, _b))
-    return avatar
-
 def delete_account(filename: str) -> None:
     filename = f"{os.environ['BASE_PATH']}/accounts/{filename}"
     Path(filename).unlink(missing_ok=True)
+
+def get_accounts_from_files() -> dict[str: Account]:
+        accounts = {}
+        account_files = os.listdir(f"{os.environ['BASE_PATH']}/accounts")
+        for filename in account_files:
+            account = Account.from_file(filename)
+
+            if not account:
+                continue
+
+            accounts[account.address] = account
+        
+        return accounts
 
 def copy_to_clipboard(text: str) -> None:
     pyperclip.copy(text)

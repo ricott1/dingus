@@ -8,7 +8,7 @@ import dingus.component as component
 import dingus.transaction as transaction
 import dingus.urwid_tui.frames as frames
 import dingus.urwid_tui.prompts as prompts
-from dingus.urwid_tui.utils import PALETTE, WIDTH, HEIGHT, create_button, terminal_size, attr_button, rgb_list_to_text
+from dingus.urwid_tui.utils import PALETTE, WIDTH, HEIGHT, create_button, terminal_size, attr_button, avatar
 from dingus.types.event import Event
 import dingus.utils as utils
 from dingus.constants import LSK, BALANCE_TRANSFER_MAX_DATA_LENGTH
@@ -18,32 +18,54 @@ from dingus.types.account import Account
 
 class TUI(component.ComponentMixin, urwid.Pile):
     def __init__(self) -> None:
+        self.accounts = utils.get_accounts_from_files()
+        self.on_account_change = []
+        self.active_address = None
+
         self.warning_frame = frames.WarningFrame()
-        
         self.tip_header = CurrentTipLineBox(self)
+        self.account_header = AccountInfo(self)
         self.bodies = {
-            "greetings": frames.TitleFrame(["Dingus"]),
-            "account": AccountInfo(self),
+            "greetings":  urwid.WidgetDisable(frames.TitleFrame(["Dingus"])),
             "explorer": Explorer(self),
-            "quitting": frames.TitleFrame(["Good Bye"])
+            "selection": AccountSelection(self),
+            "quitting":  urwid.WidgetDisable(frames.TitleFrame(["Good Bye"])),
+            "empty": urwid.WidgetDisable(urwid.ListBox(urwid.SimpleFocusListWalker([])))
         }
 
-        self.base_footer = MenuFooter(self)
+        self.base_footer = SearchBarEdit(self)
         _footer = urwid.BoxAdapter(self.base_footer, height=3)
-        super().__init__([("pack", self.tip_header), self.bodies["greetings"], ("pack", _footer)])
+        super().__init__([("pack", self.tip_header), ("pack", self.account_header), self.bodies["greetings"], ("pack", _footer)])
         
     @property
     def active_body(self) -> frames.UiFrame | frames.UiPile:
-        return self.contents[1][0]
+        return self.contents[2][0]
 
     @active_body.setter
     def active_body(self, _body: frames.UiFrame | frames.UiPile) -> None:
-        self.contents[1] = (_body, ("weight", 1))
+        self.contents[2] = (_body, ("weight", 1))
         if hasattr(self.active_body, "start"):
             self.active_body.start()
+        
+    @property
+    def active_address(self) -> str | None:
+        return self._active_address
+    @active_address.setter
+    def active_address(self, value: str) -> None:
+        if not value or (value in self.accounts and value != self.active_address):
+            self._active_address = value
+            for callback in self.on_account_change:
+                callback()
     
     def update_active_body(self, name: str) -> None:
+        if name not in self.bodies:
+            return
+
         self.active_body = self.bodies[name]
+        if name == "empty":
+            self.focus_position = 1
+        else:
+            self.focus_position = 2
     
     def set_widget_at(self, idx: int, widget) -> None:
         options = self.contents[idx][1]
@@ -55,9 +77,6 @@ class TUI(component.ComponentMixin, urwid.Pile):
         self.loop.unhandled_input = self.handle_input
         self.loop.start()
         self.event_loop.set_exception_handler(self._exception_handler)
-        for name in self.bodies:
-            if hasattr(self.bodies[name], "start"):
-                self.bodies[name].start()
 
     def _exception_handler(self, loop, context):
         self.stop()
@@ -91,12 +110,9 @@ class TUI(component.ComponentMixin, urwid.Pile):
         if _input in ("q", "Q", "esc"):
             self.emit_event("quit_input", {}, ["user_input"])
             self.update_active_body("quitting")
-        elif _input in ("e", "E"):
-            self.update_active_body("explorer")
-        elif _input in ("a", "A"):
-            self.update_active_body("account")
         elif hasattr(self.active_body, "handle_input"):
             self.active_body.handle_input(_input)
+        self.account_header.handle_input(_input)
 
     async def on_update(self, _deltatime: float) -> None:
         cols, rows = terminal_size()
@@ -110,7 +126,7 @@ class TUI(component.ComponentMixin, urwid.Pile):
         
 
 class CurrentTipLineBox(urwid.LineBox):
-    def __init__(self, parent) -> None:
+    def __init__(self, parent: TUI) -> None:
         self.parent = parent
         self.walker = urwid.SimpleFocusListWalker([urwid.Text("\n Fetching network status...", align = "center")])
         super().__init__(
@@ -176,10 +192,11 @@ class CurrentTipLineBox(urwid.LineBox):
 
 
 class SearchBarEdit(frames.UiFrame):
-    def __init__(self, parent):
+    def __init__(self, parent: TUI) -> None:
         self.parent = parent
         self.search_edit = urwid.Edit("Search:")
-        super().__init__(self.search_edit)
+        _body = urwid.ListBox(urwid.SimpleFocusListWalker([urwid.LineBox(self.search_edit)]))
+        super().__init__(_body)
     
     def handle_input(self, _input: str) -> None:
         if _input == "enter":
@@ -187,28 +204,40 @@ class SearchBarEdit(frames.UiFrame):
             pass
 
 
-class MenuFooter(frames.UiFrame):
-    def __init__(self, parent, **kwargs) -> None:
+class AccountSelection(urwid.ListBox):
+    def __init__(self, parent: TUI) -> None:
         self.parent = parent
-         
-        acc_btn = attr_button("(A)ccount", borders=False, on_press=lambda _: self.parent.update_active_body("account"))
-        exp_btn = attr_button("(E)xplorer", borders=False, on_press=lambda _: self.parent.update_active_body("explorer"))
-        quit_btn = attr_button("(Q)uit", borders=False, on_press=lambda _: self.parent.emit_event("quit_input", {}, ["user_input"]))        
-        _menu = [
-            urwid.LineBox(acc_btn),
-            urwid.LineBox(exp_btn),
-            urwid.LineBox(quit_btn)
-        ] 
+        self.walker = urwid.SimpleFocusListWalker([urwid.Text("")])
+        super().__init__(self.walker)
+    
+    def start(self):
+        def select_btn(addr):
+            self.parent.update_active_body("empty")
+            self.parent.active_address = addr
 
-        _body = urwid.ListBox(urwid.SimpleFocusListWalker([urwid.Columns(_menu)]))
-        super().__init__(_body, **kwargs)
+        select_account_btns = []
+        for address, account in self.parent.accounts.items():
+            name = account.name
+                
+            btn = attr_button(
+                ["\n"] + avatar(account.address) + ["\nselect"], 
+                borders = False, 
+                on_press = lambda _, acc=address : select_btn(acc)
+            )
+            selection_entry = urwid.Columns([
+                (16, btn), 
+                urwid.Text(f"\n{name}\n{address}", align="center")
+            ])
 
+            select_account_btns.append(selection_entry)
+            
+        self.walker[:] = urwid.SimpleFocusListWalker(select_account_btns)
 
 class Explorer(urwid.ListBox):
-    def __init__(self, parent, **kwargs) -> None:
+    def __init__(self, parent: TUI) -> None:
         self.parent = parent
         _body = urwid.SimpleFocusListWalker([urwid.Text("")])
-        super().__init__(_body, **kwargs)
+        super().__init__(_body)
     
     def display_block(self, data: dict) -> None:
         rows = [urwid.Text("\nBlock\n", align="center")]
@@ -300,7 +329,7 @@ class Explorer(urwid.ListBox):
 
 
 class AccountInfo(frames.UiPile):
-    def __init__(self, parent, **kwargs) -> None:
+    def __init__(self, parent: TUI) -> None:
         self.parent = parent
 
         new_act_btn = attr_button(
@@ -348,26 +377,32 @@ class AccountInfo(frames.UiPile):
             borders=False, 
             on_press=self.remove_account
         )
-
-        self.base_body = urwid.ListBox(urwid.SimpleFocusListWalker([]))
         
-        _widgets = [("pack", _header), ("pack", _btns), self.base_body]
-        super().__init__(_widgets, **kwargs)
+        _widgets = [_header, ("pack", _btns)]
+        super().__init__(_widgets)
         self.price_feeds = {"LSK_EUR" : 0}
+        self.is_prompting = False
+
+        if self.accounts:
+            self.parent.active_address = list(self.accounts.keys())[0]
+        else:
+            self.parent.active_address = None
+        self.update_header()
+        self.parent.on_account_change.append(self.on_account_change)
     
     @property
-    def active_address(self) -> str:
-        return self._active_address
+    def accounts(self) -> dict[str:Account]:
+        return self.parent.accounts
+    @accounts.setter
+    def accounts(self, value: dict[str:Account]) -> dict[str:Account]:
+        self.parent.accounts = value
+
+    @property
+    def active_address(self) -> str | None:
+        return self.parent.active_address
     @active_address.setter
     def active_address(self, value: str) -> None:
-        if not value:
-            self._active_address = None
-            self.update_header()
-        elif value in self.accounts and value != self.active_address:
-            self._active_address = value
-            event_data = {"key": "address", "value": value, "response_name": "response_account_info"}
-            self.parent.emit_event("request_account", event_data, ["user_input"])
-            self.update_header()
+        self.parent.active_address = value
             
     @property
     def active_account(self) -> dict | None:
@@ -376,12 +411,13 @@ class AccountInfo(frames.UiPile):
 
         return self.accounts[self.active_address]
     
-    def start(self):
-        self.accounts = self.get_accounts_from_files()
-        if self.accounts:
-            self._active_address = list(self.accounts.keys())[0]
-        else:
-            self._active_address = None
+    def selectable(self) -> None:
+        return not self.is_prompting
+    
+    def on_account_change(self) -> None:
+        if self.active_address:
+            event_data = {"key": "address", "value": self.active_address, "response_name": "response_account_info"}
+            self.parent.emit_event("request_account", event_data, ["user_input"])
         self.update_header()
     
     def handle_input(self, _input: str) -> None:
@@ -397,24 +433,6 @@ class AccountInfo(frames.UiPile):
             if self.active_address:
                 utils.copy_to_clipboard(self.active_address)
     
-    def reset_base_body(self):
-        self.contents[2] = (self.base_body, ("weight", 1))
-        self.focus_position = 1
-    
-    def get_accounts_from_files(self) -> dict[str: Account]:
-        accounts = {}
-        account_files = os.listdir(f"{os.environ['BASE_PATH']}/accounts")
-        for filename in account_files:
-            account = Account.from_file(filename)
-
-            if not account:
-                continue
-
-            address = account.address
-            accounts[address] = account
-        
-        return accounts
-    
     def request_and_switch_to_explorer(self, event_name: str, event_data: dict) -> None:
         self.parent.update_active_body("explorer")
         self.parent.emit_event(
@@ -427,11 +445,10 @@ class AccountInfo(frames.UiPile):
         if not self.active_account:
             header_data = urwid.Text("\n\n\n\nNo account data, create a new one first.\n\n\n\n\n", align= "center")
         else:
-            avatar = rgb_list_to_text(utils.lisk32_to_avatar(self.active_account.address))
             name = self.active_account.name
 
             btn = attr_button(
-                ["\n"] + avatar + ["\n(C)opy"], 
+                ["\n\n"] + avatar(self.active_account.address) + ["\n(C)opy\n\n"], 
                 borders = False, 
                 on_press = lambda _ : utils.copy_to_clipboard(self.active_address)
             )
@@ -474,7 +491,7 @@ class AccountInfo(frames.UiPile):
     def prompt_send_lsk(self, btn = None) -> None:
         if not self.active_address:
             return
-        bottom_w = urwid.WidgetDisable(self)
+        bottom_w = urwid.WidgetDisable(self.parent.active_body)
         top_w = prompts.SendPrompt(self.send_lsk, self.destroy_prompt)
         _overlay = urwid.Overlay(top_w, bottom_w, "center", 60, ("relative", 15), 20)
         self.parent.active_body = _overlay
@@ -547,22 +564,24 @@ class AccountInfo(frames.UiPile):
             self.prompt_text(f"Transaction {trs.id.hex()} sent!", title="Success")
 
     def destroy_prompt(self) -> None:
-        self.parent.active_body = self
-        self.reset_base_body()
+        self.parent.update_active_body("empty")
+        self.is_prompting = False
     
     def prompt_text(self, text: str = "There was an error", title: str = "Error") -> None:
-        bottom_w = urwid.WidgetDisable(self)
+        bottom_w = urwid.WidgetDisable(self.parent.active_body)
         top_w = prompts.TextPrompt(text, title, self.destroy_prompt)
         _width = 48
         _height = 16 + len(text)//_width
         _overlay = urwid.Overlay(top_w, bottom_w, "center", _width, ("relative", 15), _height)
         self.parent.active_body = _overlay
+        self.is_prompting = True
 
     def prompt_new_account(self, btn = None) -> None:
-        bottom_w = urwid.WidgetDisable(self)
+        bottom_w = urwid.WidgetDisable(self.parent.active_body)
         top_w = prompts.NewAccountPrompt(self.create_new_account, self.destroy_prompt)
         _overlay = urwid.Overlay(top_w, bottom_w, "center", 48, ("relative", 15), 13)
         self.parent.active_body = _overlay
+        self.is_prompting = True
 
     def create_new_account(self, name: str, password: str) -> None:
         sk = utils.random_private_key()
@@ -581,10 +600,11 @@ class AccountInfo(frames.UiPile):
         self.destroy_prompt()
     
     def prompt_import_account(self, btn = None) -> None:
-        bottom_w = urwid.WidgetDisable(self)
+        bottom_w = urwid.WidgetDisable(self.parent.active_body)
         top_w = prompts.ImportPrompt(self.import_account, self.destroy_prompt)
         _overlay = urwid.Overlay(top_w, bottom_w, "center", 60, ("relative", 15), 19)
         self.parent.active_body = _overlay
+        self.is_prompting = True
     
     def import_account(self, name: str, password: str, passphrase: str) -> None:
         sk = keys.PrivateKey.from_passphrase(passphrase)
@@ -611,6 +631,7 @@ class AccountInfo(frames.UiPile):
         top_w = prompts.BookmarkPrompt(self.bookmark_account, self.destroy_prompt)
         _overlay = urwid.Overlay(top_w, bottom_w, "center", 48, ("relative", 15), 13)
         self.parent.active_body = _overlay
+        self.is_prompting = True
     
     def bookmark_account(self, name: str, address: str) -> None:
         if not utils.validate_lisk32_address(address):
@@ -648,34 +669,10 @@ class AccountInfo(frames.UiPile):
     def select_account(self, btn = None) -> None:
         if self.selecting_account:
             self.selecting_account = False
-            self.reset_base_body()
+            self.parent.update_active_body("empty")
         else:
-            def select_btn(addr):
-                self.reset_base_body()
-                self.active_address = addr
-
             self.selecting_account = True
-            select_account_btns = []
-            for address, account in self.accounts.items():
-                avatar = rgb_list_to_text(utils.lisk32_to_avatar(account.address))
-                name = account.name
-                    
-                btn = attr_button(
-                    ["\n"] + avatar + ["\nselect"], 
-                    borders = False, 
-                    on_press = lambda _, acc=address : select_btn(acc)
-                )
-                selection_entry = urwid.Columns([
-                    (16, btn), 
-                    urwid.Text(f"\n{name}\n{address}", align="center")
-                ])
-
-                select_account_btns.append(selection_entry)
-                
-            _body = urwid.ListBox(urwid.SimpleFocusListWalker(select_account_btns))
-            self.contents[2] = (_body, ("weight", 1))
-            self.focus_position = 2
-            
+            self.parent.update_active_body("selection")
 
     async def handle_event(self, event: Event) -> None:
         if event.name == "network_status_update":
