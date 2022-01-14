@@ -1,4 +1,5 @@
 import urwid
+import dingus.utils as utils
 
 WIDTH = 64
 HEIGHT = 24
@@ -87,3 +88,18 @@ def rgb_list_to_text(rgb_list: list[tuple[int]]) -> str:
         text.append("\n")
 
     return text
+
+def lisk32_to_avatar(base32_address: str) -> list[tuple[int]]:
+    address = utils.get_address_from_lisk32_address(base32_address)
+    avatar = []
+    r, g, b = [utils.hash(bytes.fromhex(f"0{i}") + address) for i in range(3)]
+    color_bin_size = 32
+    for i in range(0, len(r), 2):
+        _r = int.from_bytes(r[i:i+1], "big")//color_bin_size*color_bin_size
+        _g = int.from_bytes(g[i:i+1], "big")//color_bin_size*color_bin_size
+        _b = int.from_bytes(b[i:i+1], "big")//color_bin_size*color_bin_size
+        avatar.append((_r, _g, _b))
+    return avatar
+
+def avatar(base32_address: str) -> str:
+    return rgb_list_to_text(lisk32_to_avatar(base32_address))

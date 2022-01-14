@@ -16,7 +16,7 @@ class Processor(object):
        
     async def stop(self, *args):
         for comp in self.components:
-            await comp.stop()
+            comp.stop()
         tasks = asyncio.all_tasks(self.event_loop)
         if tasks:
             print("Terminating tasks", tasks)
@@ -24,12 +24,10 @@ class Processor(object):
 
     async def start(self) -> None:
         await asyncio.gather(*[asyncio.create_task(comp.start()) for comp in self.components])
-        deltatime = 0.05
+        deltatime = 0.02
         exit_flag = False
         try:
-            while True:
-                if exit_flag:
-                    break
+            while not exit_flag:
                 await asyncio.wait([comp.on_update(deltatime) for comp in self.components])
                 events = []
                 for comp in self.components:
@@ -39,12 +37,14 @@ class Processor(object):
                     if event.name == "quit_input":
                         exit_flag = True
                         break
-                    [asyncio.create_task(comp.handle_event(event)) for comp in self.components]
-                    # await asyncio.wait([comp.handle_event(event) for comp in self.components])
+                    for comp in self.components:
+                        await comp.handle_event(event)
+                    # [asyncio.create_task(comp.handle_event(event)) for comp in self.components]
+                    await asyncio.wait([comp.handle_event(event) for comp in self.components])
                 await asyncio.sleep(deltatime)
         finally:
             await self.stop()
-            sys.exit(0)
+            
             
 
 

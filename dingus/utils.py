@@ -7,6 +7,7 @@ from pathlib import Path
 import logging
 
 import dingus.types.keys as keys
+from dingus.types.account import Account
 from dingus.constants import ADDRESS_LENGTH, PUB_KEY_LENGTH, SEED_LENGTH, LISK32_CHARSET, DEFAULT_LISK32_ADDRESS_PREFIX, LISK32_ADDRESS_LENGTH
 
 
@@ -29,79 +30,22 @@ def random_public_key() -> keys.PublicKey:
 def random_private_key() -> keys.PrivateKey:
     return keys.PrivateKey(os.urandom(SEED_LENGTH)) 
 
-def lisk32_to_avatar(base32_address: str) -> list[tuple[int]]:
-    address = get_address_from_lisk32_address(base32_address)
-    avatar = []
-    r, g, b = [hash(bytes.fromhex(f"0{i}") + address) for i in range(3)]
-    for i in range(0, len(r), 2):
-        _r = int.from_bytes(r[i:i+1], "big")//16*16
-        _g = int.from_bytes(g[i:i+1], "big")//16*16
-        _b = int.from_bytes(b[i:i+1], "big")//16*16
-        avatar.append((_r, _g, _b))
-    return avatar
-
-def save_account(filename: str, data: dict) -> None:
-    if "balance" not in data:
-        data["balance"] = 0
-    if "public_key" not in data:
-        data["public_key"] = ""
-    else:
-        data["public_key"] = data["public_key"].hex()
-    if "nonce" not in data:
-        data["nonce"] = 0
-    if "name" not in data:
-        data["name"] = ""
-        
-    if "ciphertext" in data \
-        and "salt" in data \
-        and "iv" in data \
-        and "iteration_count" in data:
-        data["bookmark"] = False
-    else:
-        data["bookmark"] = True
-
-    try:
-        with open(f"{os.environ['DINGUS_BASE_PATH']}/accounts/{filename}", "w") as f:
-            f.write(json.dumps(data))
-    except Exception as err:
-        logging.error(f"utils.save_account {err}")
-        raise err
-
-def load_account(filename: str) -> dict:
-    try:
-        with open(f"{os.environ['DINGUS_BASE_PATH']}/accounts/{filename}", "r") as f:
-            data = json.load(f)
-    except Exception as err:
-        logging.error(f"utils.load_account {err}")
-        return {}
-
-    if "address" not in data:
-        return {}
-
-    if "balance" not in data:
-        data["balance"] = 0
-    if "public_key" not in data:
-        data["public_key"] = b""
-    else:
-        data["public_key"] = bytes.fromhex(data["public_key"])
-    if "nonce" not in data:
-        data["nonce"] = 0
-    if "name" not in data:
-        data["name"] = ""
-        
-    if "ciphertext" in data \
-        and "salt" in data \
-        and "iv" in data \
-        and "iteration_count" in data:
-        data["bookmark"] = False
-    else:
-        data["bookmark"] = True
-    
-    return data
-
 def delete_account(filename: str) -> None:
-    filename = f"{os.environ['DINGUS_BASE_PATH']}/accounts/{filename}"
+    filename = f"{os.environ['BASE_PATH']}/accounts/{filename}"
     Path(filename).unlink(missing_ok=True)
+
+def get_accounts_from_files() -> dict[str: Account]:
+        accounts = {}
+        account_files = os.listdir(f"{os.environ['BASE_PATH']}/accounts")
+        for filename in account_files:
+            account = Account.from_file(filename)
+
+            if not account:
+                continue
+
+            accounts[account.address] = account
+        
+        return accounts
 
 def copy_to_clipboard(text: str) -> None:
     pyperclip.copy(text)

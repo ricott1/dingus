@@ -16,7 +16,7 @@ class UiFrame(urwid.Frame):
     def start(self):
         pass
 
-    def handle_input(self, _input: str, pressed_since: float=0) -> None:
+    def handle_input(self, _input: str) -> None:
         pass
 
     async def on_update(self, deltatime: float) -> None:
@@ -32,7 +32,7 @@ class UiPile(urwid.Pile):
     def start(self):
         pass
 
-    def handle_input(self, _input: str, pressed_since: float=0) -> None:
+    def handle_input(self, _input: str) -> None:
         pass
 
     async def on_update(self, deltatime: float) -> None:
@@ -63,7 +63,7 @@ class SplitHorizontalFrame(UiFrame):
             if hasattr(self.widgets[index], "on_update"):
                 self.widgets[index].on_update(deltatime)
 
-    def handle_input(self, _input, pressed_since=0):
+    def handle_input(self, _input):
         for index in self.update_order:
             if hasattr(self.widgets[index], "handle_input"):
                 self.widgets[index].handle_input(_input)
@@ -86,7 +86,7 @@ class SplitVerticalFrame(UiFrame):
             if hasattr(self.widgets[index], "on_update"):
                 self.widgets[index].on_update(deltatime)
 
-    def handle_input(self, _input, pressed_since=0):
+    def handle_input(self, _input):
         for index in self.update_order:
             if hasattr(self.widgets[index], "handle_input"):
                 self.widgets[index].handle_input(_input)

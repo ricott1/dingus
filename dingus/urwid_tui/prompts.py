@@ -179,7 +179,7 @@ class SendPrompt(Prompt):
         self.recipient_edit = urwid.Edit("Recipient: ")
         self.amount_edit = urwid.Edit("Amount: LSK ", edit_text="0")
         self.data_edit = urwid.Edit("Data: ")
-        self.fee_edit = urwid.Edit("Fee: LSK ", edit_text = f"{float(BALANCE_TRANSFER_LENGTH *int(os.environ['DINGUS_MIN_FEE_PER_BYTE']) / LSK):.4f}")
+        self.fee_edit = urwid.Edit("Fee: LSK ", edit_text = f"{float(BALANCE_TRANSFER_LENGTH *int(os.environ['MIN_FEE_PER_BYTE']) / LSK):.4f}")
         self.pwd_edit = urwid.Edit("Password: ", mask="*")
         params = urwid.ListBox(urwid.SimpleFocusListWalker([
             self.recipient_edit,
