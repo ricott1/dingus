@@ -63,6 +63,17 @@ class MyButton(urwid.Button):
         return not self.disabled
 
 
+class TitleFrame(urwid.Frame):
+    def __init__(self, _title, _attribute=None, _font=urwid.HalfBlock7x7Font()):
+        if _attribute:
+            _title = [(_attribute, t) for t in _title]
+        bigtext = urwid.Pile(
+            [urwid.Padding(urwid.BigText(t, _font), 'center', None) for t in _title])
+
+        bigtext = urwid.Filler(bigtext)
+        super().__init__(bigtext)
+
+
 def terminal_size(scr=urwid.raw_display.Screen()):
     return scr.get_cols_rows()
 

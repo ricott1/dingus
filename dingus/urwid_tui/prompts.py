@@ -3,7 +3,6 @@ from typing import Callable, Any
 import os
 
 from dingus.urwid_tui.utils import attr_button
-import dingus.urwid_tui.frames as frames
 from dingus.constants import LSK, BALANCE_TRANSFER_LENGTH
 
 
@@ -25,7 +24,7 @@ class Prompt(urwid.LineBox):
 
         _widgets = [("pack", header), *body_widgets, ("pack", footer)]
         super().__init__(
-            frames.UiPile(_widgets, focus_item=focus_item),
+            urwid.Pile(_widgets, focus_item=focus_item),
             tlcorner = "╔", 
             tline = "═", 
             lline = "║", 
