@@ -112,11 +112,9 @@ class TUI(component.ComponentMixin, urwid.Pile):
         for name in self.bodies:
             if hasattr(self.bodies[name], "handle_event"):
                 await self.bodies[name].handle_event(event)
-
-        if event.name == "response_account" and self.active_account:
-           self.account_header.update(self.active_account)
         
         await self.tip_header.handle_event(event)
+        await self.account_header.handle_event(event)
 
     def handle_input(self, _input: str) -> None:
         if _input == "esc":
@@ -326,7 +324,7 @@ class Explorer(urwid.ListBox):
                 )
 
             btn = urwid.AttrMap(btn, None, focus_map="line")
-            col = urwid.Columns([urwid.Text(f" {k}:    ", align="right"), btn]) 
+            col = urwid.Columns([urwid.Text(("green", f" {k}:    "), align="right"), btn]) 
             rows.append(col)
         
         self.body[:] = rows
@@ -404,7 +402,7 @@ class AccountInfo(urwid.Pile):
         
         _widgets = [_header, ("pack", _btns)]
         super().__init__(_widgets)
-        self.price_feeds = {"LSK_EUR" : 0}
+        self.price_feeds = {"LSK_EUR": 0, "LSK_BTC": 0}
         self.is_prompting = False
 
         if self.accounts:
@@ -486,16 +484,18 @@ class AccountInfo(urwid.Pile):
 
             balance = float(self.active_account.balance) / LSK
             lsk_to_eur = balance * self.price_feeds["LSK_EUR"]
+            lsk_to_btc = balance * self.price_feeds["LSK_BTC"]
+            balances = urwid.Text(f"\n{balance} LSK\n{lsk_to_eur:.2f} EUR\n {lsk_to_btc:.8f} BTC", align="center")
 
             if self.active_account.bookmark:
                     bottom = urwid.Columns([
                     urwid.LineBox(self.remove_account_btn),
-                    urwid.Text(f"\n{balance} LSK = {lsk_to_eur:.2f} EUR", align="center")
+                    balances
                 ])
             else:
                 bottom = urwid.Columns([
                     urwid.LineBox(self.send_btn),
-                    urwid.Text(f"\n{balance} LSK = {lsk_to_eur:.2f} EUR", align="center")
+                    balances
                 ])
 
             header_data = urwid.Columns([
@@ -693,14 +693,16 @@ class AccountInfo(urwid.Pile):
             self.parent.update_active_body("selection")
 
     async def handle_event(self, event: Event) -> None:
+        if event.name == "response_account" and self.active_account:
+            self.update(self.active_account)
         if event.name == "network_status_update":
             data = {"key": "address", "value": self.active_address, "response_name": "response_account_info"}
             self.parent.emit_event("request_account", data, ["user_input"])
         elif event.name == "market_prices_update":
             if event.data:
+                for feed in event.data:
+                    self.price_feeds[feed["code"]] = float(feed["rate"])
                 self.update_header()
-            for feed in event.data:
-                self.price_feeds[feed["code"]] = float(feed["rate"])
         elif event.name == "response_account_info" \
             and "summary" in event.data \
             and "address" in event.data["summary"]:

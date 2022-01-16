@@ -6,14 +6,13 @@ HEIGHT = 24
 
 PALETTE = [
     ("line", "black", "white", "standout"),
-    ("top", "white", "black"),
-    ("black", "black", "black"),
-    ("background", "white", "black"),
+    ("top", "white", ""),
+    ("black", "black", "white"),
+    ("background", "white", ""),
     ("background_focus", "black", "white", "standout"),
-    ("name", "yellow", "black"),
-    ("green", "light green", "black"),
-    ("yellow", "yellow", "black"),
-    ("red", "light red", "black")
+    ("green", "light green", ""),
+    ("yellow", "yellow", ""),
+    ("red", "light red", "")
 ]
 
 

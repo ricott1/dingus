@@ -36,7 +36,7 @@ class DingusClient(component.ComponentMixin, socketio.AsyncClient):
         fees = api.network_fees()
         if "data" in fees:
             os.environ["MIN_FEE_PER_BYTE"] = str(fees["data"]["minFeePerByte"])
-        prices= api.market_prices()
+        prices = api.market_prices()
         if "data" in prices:
             self.emit_event("market_prices_update", prices["data"], ["api_response"])
         
@@ -94,7 +94,7 @@ class DingusClient(component.ComponentMixin, socketio.AsyncClient):
         if time.time() - self.last_update_time > int(os.environ["BLOCK_TIME"]):
             status = api.network_status()
             self.emit_event("network_status_update", status, ["api_response"])
-            prices= api.market_prices()
+            prices = api.market_prices()
             if "data" in prices:
                 self.emit_event("market_prices_update", prices["data"], ["api_response"])
 
