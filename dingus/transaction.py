@@ -86,7 +86,7 @@ class Transaction(object):
         return self.schema.fee
     
     @property
-    def signatures(self) -> int:
+    def signatures(self) -> list[bytes]:
         return self.schema.signatures
 
     @property

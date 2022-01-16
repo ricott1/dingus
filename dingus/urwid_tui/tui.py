@@ -1,6 +1,8 @@
 import logging
 import urwid
 import traceback
+import string
+import os
 
 import dingus.component as component
 import dingus.transaction as transaction
@@ -32,7 +34,7 @@ class TUI(component.ComponentMixin, urwid.Pile):
             "greetings":  urwid.WidgetDisable(TitleFrame(["Dingus"])),
             "explorer": Explorer(self),
             "selection": AccountSelection(self),
-            "quitting":  urwid.WidgetDisable(TitleFrame(["Good Bye"])),
+            "quitting": urwid.WidgetDisable(TitleFrame(["Good Bye"])),
             "empty": urwid.WidgetDisable(urwid.ListBox(urwid.SimpleFocusListWalker([])))
         }
 
@@ -146,7 +148,8 @@ class CurrentTipLineBox(urwid.LineBox):
                 urwid.ListBox(self.walker), 
                 height=4
             ), 
-            title = "Chain status"
+            title = f"{os.environ['NETWORK']} status",
+            title_attr = "yellow"
         )
 
         self.initialized = False
@@ -198,20 +201,28 @@ class CurrentTipLineBox(urwid.LineBox):
 class SearchBarEdit(urwid.Frame):
     def __init__(self, parent: TUI) -> None:
         self.parent = parent
-        self.search_edit = urwid.Edit(("green", "Search:"))
+        self.search_edit = urwid.Edit(("yellow", "Search:"))
+        urwid.connect_signal(self.search_edit, "change", self.update_edit_color)
         _body = urwid.ListBox(urwid.SimpleFocusListWalker([urwid.LineBox(self.search_edit)]))
         super().__init__(_body)
+    
+    def update_edit_color(self, edit: urwid.Edit, text: str):
+        if (text.startswith("lsk") and len(text) == LISK32_ADDRESS_LENGTH and utils.validate_lisk32_address(text)) \
+            or (len(text) == ID_STRING_LENGTH and all(c in string.hexdigits for c in text)):
+            self.search_edit.set_caption(("green", "Search:"))
+        else:
+            self.search_edit.set_caption(("yellow", "Search:"))
     
     def handle_input(self, _input: str) -> None:
         if _input == "enter":
             text = self.search_edit.get_edit_text()
-            if text.startswith("lsk") and len(text) == LISK32_ADDRESS_LENGTH:
+            if text.startswith("lsk") and len(text) == LISK32_ADDRESS_LENGTH and utils.validate_lisk32_address(text):
                 self.parent.emit_explorer_event(
                     "request_account", 
                     {"key": "address", "value": text, "response_name": "response_account_explorer"}
                 )
                 self.search_edit.edit_text = ""
-            elif len(text) == ID_STRING_LENGTH:
+            elif len(text) == ID_STRING_LENGTH and all(c in string.hexdigits for c in text):
                 self.parent.emit_explorer_event(
                     "request_block", 
                     {"key": "blockId", "value": text, "response_name": "response_block"}
@@ -504,7 +515,14 @@ class AccountInfo(urwid.Pile):
             ])
             title = self.active_account.name
 
-        self.contents[0] = (urwid.LineBox(header_data, title= title), ("pack", None))
+        self.contents[0] = (
+            urwid.LineBox(
+                header_data, 
+                title = title,
+                title_attr = "yellow"
+                ), 
+            ("pack", None)
+        )
 
     def prompt_send_lsk(self, btn = None) -> None:
         if not self.active_address:

@@ -22,6 +22,15 @@ pytest = "^6.2.5"
 [tool.poetry.scripts]
 dingus = "dingus.__main__:start"
 
+# pyproject.toml
+[tool.pytest.ini_options]
+minversion = "6.0"
+addopts = "-ra"
+testpaths = [
+    "tests",
+    "tests/tree"
+]
+
 [build-system]
 requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"

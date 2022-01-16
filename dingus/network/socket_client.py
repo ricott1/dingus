@@ -93,9 +93,12 @@ class DingusClient(component.ComponentMixin, socketio.AsyncClient):
     async def on_update(self, deltatime: float) -> None:
         if time.time() - self.last_update_time > int(os.environ["BLOCK_TIME"]):
             status = api.network_status()
-            self.emit_event("network_status_update", status, ["api_response"])
-            prices = api.market_prices()
-            if "data" in prices:
-                self.emit_event("market_prices_update", prices["data"], ["api_response"])
-
-            self.last_update_time = status["meta"]["lastUpdate"]
+            if "data" in status:
+                self.emit_event("network_status_update", status, ["api_response"])
+            if "meta" in status:
+                self.last_update_time = status["meta"]["lastUpdate"]
+                if status["meta"]["lastBlockHeight"] // 20 == 0:
+                    prices = api.market_prices()
+                    if "data" in prices:
+                        self.emit_event("market_prices_update", prices["data"], ["api_response"])
+                        
