@@ -262,9 +262,10 @@ class Explorer(urwid.ListBox):
         super().__init__(_body)
     
     def display_block(self, data: dict) -> None:
-        rows = [urwid.Text("\nBlock\n", align="center")]
+        rows = [urwid.Text(("yellow", "\nBlock\n"), align="center")]
+        label_length = max([len(k) for k in data.keys()]) + 3
         for k, v in data.items():
-            btn = create_button(f"{v}", borders = False)
+            btn = create_button(f"{v}", borders = False, align="left")
             if k == "previousBlockId":
                 urwid.connect_signal(
                     btn, 
@@ -324,26 +325,25 @@ class Explorer(urwid.ListBox):
                 )
 
             btn = urwid.AttrMap(btn, None, focus_map="line")
-            col = urwid.Columns([urwid.Text(("green", f" {k}:    "), align="right"), btn]) 
+            label = urwid.Text(("green", f" {k}: "))            
+            col = urwid.Columns([(label_length, label), btn]) 
             rows.append(col)
         
         self.body[:] = rows
     
     def display_account(self, data: dict) -> None:
-        rows = [urwid.Text("\nAccount\n", align="center")]
-        for k, v in data.items():
-            rows.append(urwid.Text(f"{k}\n", align="center"))
-            for k1, v1 in v.items():
-                btn = create_button(f"{v1}", borders = False)
-                btn = urwid.AttrMap(btn, None, focus_map="line")
-                col = urwid.Columns([urwid.Text(f" {k1}:    "), btn]) 
-                rows.append(col)
-        
+        rows = [urwid.Text(("yellow", "\nAccount\n"), align="center")]
+        label_length = max([len(k) for k in data["summary"].keys()]) + 3
+        for k, v in data["summary"].items():
+            btn = create_button(f"{v}", borders = False, align="left")
+            btn = urwid.AttrMap(btn, None, focus_map="line")
+            label = urwid.Text(("green", f" {k}: "))            
+            col = urwid.Columns([(label_length, label), btn]) 
+            rows.append(col)
         
         self.body[:] = rows
     
     async def handle_event(self, event: Event) -> None:
-       
         if event.name == "response_block":
             self.display_block(event.data)
         elif event.name == "response_account_explorer":
@@ -443,6 +443,8 @@ class AccountInfo(urwid.Pile):
         self.update_header()
     
     def handle_input(self, _input: str) -> None:
+        if self.is_prompting:
+            return
         if _input in ("s", "S"):
             self.select_account()
         elif _input in ("n", "N"):
@@ -460,8 +462,6 @@ class AccountInfo(urwid.Pile):
             header_data = urwid.Text("\n\n\n\nNo account data, create a new one first.\n\n\n\n\n", align= "center")
             title = ""
         else:
-            name = self.active_account.name
-
             btn = attr_button(
                 ["\n\n"] + avatar(self.active_account.address) + ["\n(C)opy\n\n"], 
                 borders = False, 
