@@ -16,12 +16,12 @@ class LeafNode(object):
 
 @dataclass
 class BranchNode(object):
-    left: bytes
-    right: bytes
+    left_hash: bytes
+    right_hash: bytes
 
     @property
     def data(self) -> bytes:
-        return BRANCH_PREFIX + self.left + self.right
+        return BRANCH_PREFIX + self.left_hash + self.right_hash
     @property
     def hash(self) -> bytes:
         return hash(self.data)

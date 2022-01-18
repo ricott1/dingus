@@ -25,7 +25,7 @@ dingus = "dingus.__main__:start"
 # pyproject.toml
 [tool.pytest.ini_options]
 minversion = "6.0"
-addopts = "-ra"
+addopts = "-ra -v --durations=0"
 testpaths = [
     "tests",
     "tests/tree"

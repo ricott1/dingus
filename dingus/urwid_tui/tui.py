@@ -23,7 +23,7 @@ class WarningFrame(urwid.Frame):
 
 class TUI(component.ComponentMixin, urwid.Pile):
     def __init__(self) -> None:
-        self.accounts = utils.get_accounts_from_files()
+        self.accounts: dict[str, Account] = utils.get_accounts_from_files()
         self.on_account_change = []
         self.active_address = None
 
@@ -424,10 +424,10 @@ class AccountInfo(urwid.Pile):
         self.parent.on_account_change.append(self.on_account_change)
     
     @property
-    def accounts(self) -> dict[str:Account]:
+    def accounts(self) -> dict[str, Account]:
         return self.parent.accounts
     @accounts.setter
-    def accounts(self, value: dict[str:Account]) -> dict[str:Account]:
+    def accounts(self, value: dict[str, Account]) -> dict[str, Account]:
         self.parent.accounts = value
 
     @property
@@ -438,7 +438,7 @@ class AccountInfo(urwid.Pile):
         self.parent.active_address = value
             
     @property
-    def active_account(self) -> dict | None:
+    def active_account(self) -> Account | None:
         if not self.active_address:
             return None
 
@@ -622,8 +622,8 @@ class AccountInfo(urwid.Pile):
     def create_new_account(self, name: str, password: str) -> None:
         sk = utils.random_private_key()
         data = sk.encrypt(password)
-        public_key = sk.to_public_key().hexbytes()
-        address = sk.to_public_key().to_address().to_lsk32()
+        public_key = sk.to_public_key()
+        address = public_key.to_address().to_lsk32()
 
         data["name"] = name
         data["address"] = address
@@ -644,13 +644,13 @@ class AccountInfo(urwid.Pile):
     
     def import_account(self, name: str, password: str, passphrase: str) -> None:
         sk = keys.PrivateKey.from_passphrase(passphrase)
-        address = sk.to_public_key().to_address().to_lsk32()
+        public_key = sk.to_public_key()
+        address = public_key.to_address().to_lsk32()
         if address in self.accounts:
             self.prompt_text("Address already imported.")
             return
 
         data = sk.encrypt(password)
-        public_key = sk.to_public_key().hexbytes()
         data["name"] = name
         data["address"] = address
         data["public_key"] = public_key
@@ -663,7 +663,7 @@ class AccountInfo(urwid.Pile):
         self.destroy_prompt()
     
     def prompt_bookmark_account(self, btn = None) -> None:
-        bottom_w = urwid.WidgetDisable(self)
+        bottom_w = urwid.WidgetDisable(self.parent.active_body)
         top_w = prompts.BookmarkPrompt(self.bookmark_account, self.destroy_prompt)
         _overlay = urwid.Overlay(top_w, bottom_w, "center", 48, ("relative", 15), 13)
         self.parent.active_body = _overlay
@@ -724,10 +724,13 @@ class AccountInfo(urwid.Pile):
         elif event.name == "response_account_info" \
             and "summary" in event.data \
             and "address" in event.data["summary"]:
-            address = event.data["summary"]["address"]
+            address: str = event.data["summary"]["address"]
+            if address not in self.accounts:
+                return
+            
             account_changed = False
             if "publicKey" in event.data and event.data["summary"]["publicKey"]:
-                public_key = event.data["summary"]["publicKey"]
+                public_key = keys.PublicKey(bytes.fromhex(event.data["summary"]["publicKey"]))
                 if self.accounts[address].public_key != public_key:
                     self.accounts[address].public_key = public_key
                     account_changed = True

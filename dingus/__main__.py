@@ -27,9 +27,6 @@ def start():
 
     args = parser.parse_args()
 
-    Path(args.log_path[0]).unlink(missing_ok=True)
-    logging.basicConfig(filename = args.log_path[0], level=logging.DEBUG) 
-
     os.environ["NETWORK"] = args.network[0]
     os.environ["BASE_PATH"] = args.base_path[0]
     Path(f"{os.environ['BASE_PATH']}/accounts").mkdir(parents=True, exist_ok=True)
@@ -37,5 +34,8 @@ def start():
     os.environ["NETWORK_ID"] = ""
     os.environ["BLOCK_TIME"] = "10"
     os.environ["MIN_FEE_PER_BYTE"] = "0"
+
+    Path(args.log_path[0]).unlink(missing_ok=True)
+    logging.basicConfig(filename = args.log_path[0], level=logging.DEBUG) 
 
     processor = Processor()

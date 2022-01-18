@@ -28,6 +28,7 @@ class Account(object):
             elif type(data["public_key"]) == bytes:
                 data["public_key"] = keys.PublicKey(data["public_key"])
         
+        # assert isinstance(data["public_key"], keys.PublicKey)
         return Account(**data)
 
     @classmethod
@@ -46,7 +47,7 @@ class Account(object):
         return Account.from_json(data)
     
     def to_dict(self) -> dict:
-        _dict = vars(self)
+        _dict = {k:v for k, v in vars(self).items()}
         if self.public_key:
             _dict["public_key"] = self.public_key.hexbytes().hex()
         

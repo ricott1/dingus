@@ -1,3 +1,10 @@
+from dingus.utils import hash
+
 LEAF_PREFIX = b"\x00"
 BRANCH_PREFIX = b"\x01"
-EMPTY_HASH = bytes.fromhex("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855") #=sha-256-hash(b")
+
+DEFAULT_KEY_LENGTH = 32
+
+EMPTY_VALUE = b""
+EMPTY_HASH = hash(EMPTY_VALUE)
+NODE_HASH_SIZE = len(EMPTY_HASH)
