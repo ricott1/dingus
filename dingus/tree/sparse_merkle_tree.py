@@ -1,6 +1,6 @@
 from .constants import DEFAULT_KEY_LENGTH, EMPTY_HASH, LEAF_PREFIX
 from .types import LeafNode, BranchNode, EmptyNode
-from .utils import parse_branch_data, parse_leaf_data, split_keys, is_bit_set
+from .utils import split_keys, is_bit_set
 from typing import Coroutine, Any
 import asyncio
 
@@ -68,10 +68,10 @@ class SparseMerkleTree(object):
             raise MissingNodeError
 
         if data.startswith(LEAF_PREFIX):
-            key, value = parse_leaf_data(data, self.key_length)
+            key, value = LeafNode.parse(data, self.key_length)
             return LeafNode(key, value)
 
-        left_hash, right_hash = parse_branch_data(data)
+        left_hash, right_hash = BranchNode.parse(data)
         return BranchNode(left_hash, right_hash)
 
     async def update(self, key: bytes, value: bytes) -> Coroutine[Any, Any, TreeNode]: 
