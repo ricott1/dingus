@@ -6,6 +6,10 @@ import json
 import logging
 import os
 
+AccountType = str | int | keys.PublicKey | bool
+
+class InvalidAccountFileError(Exception):
+    pass
 
 @dataclass
 class Account(object):
@@ -21,33 +25,32 @@ class Account(object):
     bookmark: bool = False
 
     @classmethod
-    def from_json(cls, data: dict) -> Account:
+    def from_dict(cls, data: dict[str, AccountType]) -> Account:
         if "public_key" in data:
             if type(data["public_key"]) == str:
                 data["public_key"] = keys.PublicKey(bytes.fromhex(data["public_key"]))
             elif type(data["public_key"]) == bytes:
                 data["public_key"] = keys.PublicKey(data["public_key"])
-        
-        # assert isinstance(data["public_key"], keys.PublicKey)
+
         return Account(**data)
 
     @classmethod
-    def from_file(cls, filename: str) -> Account | None:
+    def from_file(cls, filename: str) -> Account:
         try:
             with open(f"{os.environ['BASE_PATH']}/accounts/{filename}", "r") as f:
-                data = json.load(f)
+                data: dict = json.load(f)
         except Exception as err:
             logging.error(f"utils.load_account {err}")
-            return None
+            raise err
 
         if "address" not in data:
             logging.error(f"utils.load_account Missing address")
-            return None
+            raise InvalidAccountFileError
         
-        return Account.from_json(data)
+        return Account.from_dict(data)
     
-    def to_dict(self) -> dict:
-        _dict = {k:v for k, v in vars(self).items()}
+    def to_dict(self) -> dict[str, AccountType]:
+        _dict: dict[str, AccountType] = {**vars(self).items()}
         if self.public_key:
             _dict["public_key"] = self.public_key.hexbytes().hex()
         

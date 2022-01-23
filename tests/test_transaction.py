@@ -17,7 +17,7 @@ def test_send_transaction():
         }   
     }
 
-    trs = Transaction.fromDict(params)
+    trs = Transaction.from_dict(params)
 
     passphrase = "peanut hundred pen hawk invite exclude brain chunk gadget wait wrong ready"
     os.environ["NETWORK_ID"] = "15f0dacc1060e91818224a94286b13aa04279c640bd5d6f193182031d133df7c"

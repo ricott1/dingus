@@ -579,7 +579,7 @@ class AccountInfo(urwid.Pile):
             }   
         }
 
-        trs = transaction.Transaction.fromDict(tx_params)
+        trs = transaction.Transaction.from_dict(tx_params)
         logging.info(f"Sending transaction {trs}")
 
         try:
@@ -629,7 +629,7 @@ class AccountInfo(urwid.Pile):
         data["address"] = address
         data["public_key"] = public_key
         filename = f"{address}.json"
-        account = Account.from_json(data)
+        account = Account.from_dict(data)
         account.save(filename)
         self.accounts[address] = account
         self.active_address = address
@@ -655,7 +655,7 @@ class AccountInfo(urwid.Pile):
         data["address"] = address
         data["public_key"] = public_key
         filename = f"{address}.json"
-        account = Account.from_json(data)
+        account = Account.from_dict(data)
         account.save(filename)
         
         self.accounts[address] = account
@@ -684,7 +684,7 @@ class AccountInfo(urwid.Pile):
             "bookmark": True
         }
         filename = f"bookmark.{address}.json"
-        account = Account.from_json(data)
+        account = Account.from_dict(data)
         account.save(filename)
 
         self.accounts[address] = account
@@ -749,7 +749,7 @@ class AccountInfo(urwid.Pile):
             if account_changed:
                 filename = f"{address}.json"
                 # account_data = {k: v for k, v in self.accounts[address].items() if k not in ("avatar", "selection")}
-                # account = Account.from_json(account_data)
+                # account = Account.from_dict(account_data)
                 self.accounts[address].save(filename)
                 # self.accounts[address] = account
 

@@ -31,7 +31,7 @@ class PrivateKey(SigningKey):
         return utils.passphrase_to_private_key(passphrase)
     
     @classmethod
-    def from_json(cls, data: dict, password: str = "") -> PrivateKey:
+    def from_dict(cls, data: dict, password: str = "") -> PrivateKey:
         ciphertext = bytes.fromhex(data["ciphertext"])
         salt = bytes.fromhex(data["salt"])
         iv = bytes.fromhex(data["iv"])
@@ -49,7 +49,7 @@ class PrivateKey(SigningKey):
         with open(f"{os.environ['BASE_PATH']}/accounts/{filename}", "r") as f:
             data = json.loads(f.read())
             
-        return PrivateKey.from_json(data, password)
+        return PrivateKey.from_dict(data, password)
 
     def __init__(self, source) -> None:
         super().__init__(source)

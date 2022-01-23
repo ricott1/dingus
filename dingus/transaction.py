@@ -32,7 +32,7 @@ class Transaction(object):
             for signature in params["signatures"]:
                 self.schema.signatures.extend([signature])
             
-        self.asset = module_asset_to_schema[f"{params['moduleID']}:{params['assetID']}"].fromDict(params["asset"])
+        self.asset = module_asset_to_schema[f"{params['moduleID']}:{params['assetID']}"].from_dict(params["asset"])
         self.schema.asset = self.asset.bytes
         self.unsigned_bytes = self.schema.SerializeToString()
 
@@ -57,11 +57,7 @@ class Transaction(object):
         assert "asset" in params, "Missing 'asset' parameter."
 
     @classmethod
-    def from_json(cls, json_string: str) -> Transaction:
-        return cls.fromDict(json_string.json())
-
-    @classmethod
-    def fromDict(cls, params: dict) -> Transaction:
+    def from_dict(cls, params: dict) -> Transaction:
         cls.validate_parameters(params)
         return Transaction(params)
 
@@ -131,13 +127,9 @@ class Transaction(object):
 class Asset(object):
 
     @classmethod
-    def fromDict(cls, params: dict) -> Asset:
+    def from_dict(cls, params: dict) -> Asset:
         cls.validate_parameters(params)
         return cls(params)
-    
-    @classmethod
-    def from_json(cls, json_string: str) -> Asset:
-        return cls.fromDict(json_string.json())
 
     @classmethod
     def validate_parameters(cls, params:dict) -> None:

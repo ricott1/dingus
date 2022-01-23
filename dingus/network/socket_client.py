@@ -52,7 +52,7 @@ class DingusClient(component.ComponentMixin, socketio.AsyncClient):
         if event.name == "request_block":
             block = api.fetch_block(event.data["key"], event.data["value"])
             if "response_name" in event.data:
-                name = event.data["response_name"]
+                name: str = event.data["response_name"]
             else:
                 name = "response_block"
 
@@ -101,4 +101,3 @@ class DingusClient(component.ComponentMixin, socketio.AsyncClient):
                     prices = api.market_prices()
                     if "data" in prices:
                         self.emit_event("market_prices_update", prices["data"], ["api_response"])
-                        

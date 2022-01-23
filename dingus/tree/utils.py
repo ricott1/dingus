@@ -1,4 +1,4 @@
-from .constants import EMPTY_HASH, LEAF_PREFIX, NODE_HASH_SIZE
+from .constants import DEFAULT_KEY_LENGTH, EMPTY_HASH, LEAF_PREFIX, NODE_HASH_SIZE
 from .types import LeafNode, BranchNode
 import math
 
@@ -20,10 +20,9 @@ def merkle_root(data: list[bytes]) -> bytes:
     rightTree = data[k:size]
     return BranchNode(merkle_root(leftTree), merkle_root(rightTree)).hash
 
-
 def parse_leaf_data(data: bytes, keyLength: int) -> tuple[bytes, bytes]:
-    key = data[len(LEAF_PREFIX):keyLength + len(LEAF_PREFIX) + 1]
-    value = data[keyLength + len(LEAF_PREFIX) + 1:]
+    key = data[len(LEAF_PREFIX):keyLength + len(LEAF_PREFIX)]
+    value = data[keyLength + len(LEAF_PREFIX):]
     return (key, value)
 
 def parse_branch_data(data: bytes) -> tuple[bytes, bytes]:
@@ -31,18 +30,17 @@ def parse_branch_data(data: bytes) -> tuple[bytes, bytes]:
     right_hash = data[-1 * NODE_HASH_SIZE:]
     return (left_hash, right_hash)
 
-def binary_expansion(x: bytes) -> str:
-    return "".join([f"{bin(k).lstrip('0b').zfill(8)}" for k in x])
+def digit_at(key: int, h: int, key_length: int) -> int:
+    return (key >> (8 * key_length - h - 1))%2
 
-# export const binaryStringToBuffer = (str: string) => {
-#     const byteSize = Math.ceil(str.length / 8);
-#     const buf = Buffer.alloc(byteSize);
+def split_keys(keys: list[bytes], h: int) -> int:
+    for idx, key in enumerate(keys):
+        if is_bit_set(key, h):
+            return idx
+    return len(keys)
 
-#     for (let i = 1; i <= byteSize; i += 1) {
-#         buf.writeUInt8(
-#             parseInt(str.substring(str.length - i * 8, str.length - i * 8 + 8), 2),
-#             byteSize - i,
-#         );
-#     }
-#     return buf;
-# };
+def is_bit_set(bits: bytes, i: int) -> bool:
+    shifted = bits[i//8]<<(i % 8)
+    return (shifted&BIT_COMP) == BIT_COMP
+
+BIT_COMP = int.from_bytes(b"\x80", "big")

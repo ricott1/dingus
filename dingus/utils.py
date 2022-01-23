@@ -1,13 +1,11 @@
-# from nacl.hash import sha256 
+from __future__ import annotations
 from hashlib import sha256 
 import os
-import json
 import pyperclip
 from pathlib import Path
-import logging
 
 import dingus.types.keys as keys
-from dingus.types.account import Account
+import dingus.types.account as account
 from dingus.constants import ADDRESS_LENGTH, PUB_KEY_LENGTH, SEED_LENGTH, LISK32_CHARSET, DEFAULT_LISK32_ADDRESS_PREFIX, LISK32_ADDRESS_LENGTH
 
 
@@ -34,11 +32,11 @@ def delete_account(filename: str) -> None:
     filename = f"{os.environ['BASE_PATH']}/accounts/{filename}"
     Path(filename).unlink(missing_ok=True)
 
-def get_accounts_from_files() -> dict[str: Account]:
+def get_accounts_from_files() -> dict[str: account.Account]:
         accounts = {}
         account_files = os.listdir(f"{os.environ['BASE_PATH']}/accounts")
         for filename in account_files:
-            account = Account.from_file(filename)
+            account = account.Account.from_file(filename)
 
             if not account:
                 continue
