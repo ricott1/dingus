@@ -1,3 +1,4 @@
+from typing import Callable
 from .constants import DEFAULT_KEY_LENGTH, EMPTY_HASH, LEAF_PREFIX, NODE_HASH_SIZE
 from .types import LeafNode, BranchNode
 import math
@@ -30,12 +31,9 @@ def parse_branch_data(data: bytes) -> tuple[bytes, bytes]:
     right_hash = data[-1 * NODE_HASH_SIZE:]
     return (left_hash, right_hash)
 
-def digit_at(key: int, h: int, key_length: int) -> int:
-    return (key >> (8 * key_length - h - 1))%2
-
-def split_keys(keys: list[bytes], h: int) -> int:
+def split_keys(keys: list[bytes], condition: Callable) -> int:
     for idx, key in enumerate(keys):
-        if is_bit_set(key, h):
+        if condition(key):
             return idx
     return len(keys)
 

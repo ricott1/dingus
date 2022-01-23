@@ -1,5 +1,5 @@
 from typing import Coroutine
-from dingus.tree.sparse_merkle_tree import SparseMerkleTree, TreeNode
+from dingus.tree.sparse_merkle_tree import SparseMerkleTree
 from dingus.tree.constants import EMPTY_HASH
 import time
 import asyncio
@@ -12,8 +12,8 @@ def create_test_case(n: int, key_length: int = KEY_LENGTH) -> list[tuple[bytes, 
 
 def test_large_update(capsys) -> None:
     start_time = time.time()
-    initial_case = create_test_case(10000000)
-    extra_case = create_test_case(10000)
+    initial_case = create_test_case(100000)
+    extra_case = create_test_case(100000)
     with capsys.disabled():
         print(f"\nTEST TIME CASES: {time.time() - start_time:.2f}s")
     asyncio.run(case_testing_batch(initial_case, extra_case, capsys))

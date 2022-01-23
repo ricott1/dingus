@@ -12,7 +12,7 @@ def create_test_case(n: int, key_length: int = KEY_LENGTH) -> list[tuple[bytes, 
 
 def test_update(capsys) -> None:
     start_time = time.time()
-    initial_case = create_test_case(100000)
+    initial_case = create_test_case(10000)
     extra_case = create_test_case(10000)
     with capsys.disabled():
         print(f"\nTEST TIME CASES: {time.time() - start_time:.2f}s")

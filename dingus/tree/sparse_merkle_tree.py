@@ -1,7 +1,8 @@
 from .constants import DEFAULT_KEY_LENGTH, EMPTY_HASH, LEAF_PREFIX
 from .types import LeafNode, BranchNode, EmptyNode
-from .utils import parse_branch_data, parse_leaf_data, split_keys, digit_at
+from .utils import parse_branch_data, parse_leaf_data, split_keys, is_bit_set
 from typing import Coroutine, Any
+import asyncio
 
 
 TreeNode = LeafNode | BranchNode | EmptyNode
@@ -38,22 +39,21 @@ class SparseMerkleTree(object):
         self.root = EmptyNode()
         self._db = MockDB()
 
-    async def print(self, node: TreeNode, preamble: str = "    ") -> str:
-        HASH_LENGTH = 4
+    async def print(self, node: TreeNode, preamble: str = "    ", hash_length: int = 4) -> str:
         BROWN = lambda t: f"\u001b[38;2;{105};{103};{60}m" + t + "\u001b[0m"
         if isinstance(node, EmptyNode):
             return "∅"
         
         if isinstance(node, LeafNode):
             bin_key = bin(int.from_bytes(node.key, "big")).lstrip("0b").zfill(8*len(node.key))
-            return f"─<🌿{bin_key}:{node.hash.hex()[:HASH_LENGTH]}"
+            return f"─<🌿{bin_key}:{node.hash.hex()[:hash_length]}"
                 
         right_node = await self.get_node(node.right_hash)
         left_node = await self.get_node(node.left_hash)
         left = await self.print(left_node, preamble + "    ")
         right = await self.print(right_node, preamble + f"{BROWN('│')}   ")
         return "\n".join([
-            f"{BROWN('─<B')}:{node.hash.hex()[:HASH_LENGTH]}",
+            f"{BROWN('─<B')}:{node.hash.hex()[:hash_length]}",
             f"{preamble}{BROWN('├')}{right}",
             f"{preamble}{BROWN('╰')}{left}"
         ])
@@ -97,19 +97,15 @@ class SparseMerkleTree(object):
         if isinstance(current_node, EmptyNode):
             return new_leaf
 
-        int_key = int.from_bytes(key, "big")
-
         h = height
         ancestor_nodes: list[BranchNode] = []
         while isinstance(current_node, BranchNode):
-            d = digit_at(int_key, h, self.key_length)
-            # Append current_node to ancestor_nodes
             ancestor_nodes.append(current_node)
-            h += 1
-            if d == 0:
-                current_node = await self.get_node(current_node.left_hash)
-            elif d == 1:
+            if is_bit_set(key, h):
                 current_node = await self.get_node(current_node.right_hash)
+            else:
+                current_node = await self.get_node(current_node.left_hash)
+            h += 1
             
         
         # The current_node is an empty node, new_leaf will replace the default empty node or current_node will be updated to new_leaf
@@ -122,20 +118,19 @@ class SparseMerkleTree(object):
             # We need to create BranchNodees in the tree to fulfill the
             # Condition of one leaf per empty subtree
             # Note: h is set to the last value from the previous loop
-            current_node_int_key = int.from_bytes(current_node.key, "big")
 
-            while (digit_at(int_key, h, self.key_length) == digit_at(current_node_int_key, h, self.key_length)):
+            while is_bit_set(key, h) == is_bit_set(current_node.key, h):
                 # Create branch node with empty value
                 new_branch = BranchNode(EMPTY_HASH, EMPTY_HASH)
                 # Append defaultBranch to ancestor_nodes
                 ancestor_nodes.append(new_branch)
                 h += 1 
             # Create last branch node, parent of node and new_leaf
-            d = digit_at(int_key, h, self.key_length)
-            if d == 0:
-                bottom_node = BranchNode(new_leaf.hash, current_node.hash)
-            elif d == 1:
+
+            if is_bit_set(key, h):
                 bottom_node = BranchNode(current_node.hash, new_leaf.hash)
+            else:
+                bottom_node = BranchNode(new_leaf.hash, current_node.hash)
             await self._db.set(bottom_node.hash, bottom_node.data)
 
         # Finally update all branch nodes in ancestor_nodes
@@ -145,11 +140,10 @@ class SparseMerkleTree(object):
             p = ancestor_nodes.pop()
             await self._db.delete(p.hash)
             h -= 1
-            d = digit_at(int_key, h, self.key_length)
-            if d == 0:
-                p.left_hash = bottom_node.hash
-            elif d == 1:
+            if is_bit_set(key, h):
                 p.right_hash = bottom_node.hash
+            else:
+                p.left_hash = bottom_node.hash
             
             await self._db.set(p.hash, p.data)
             bottom_node = p
@@ -180,7 +174,7 @@ class SparseMerkleTree(object):
                     raise InvalidKeyError
                 keys_set[key] = True
             
-        sorted_data = sorted(data, key = lambda d: int.from_bytes(d[0], "big"))
+        sorted_data = sorted(data, key = lambda d: d[0])
         self.root = await self._update_batch(sorted_data, self.root, 0)
         return self.root
         
@@ -192,64 +186,45 @@ class SparseMerkleTree(object):
             key, value = data[0]
             return await self._update(key, value, current_node, height)
 
-        current_node_prev_hash = bytes(current_node.hash)
+        # If current_node is a leaf, append it to data
         if isinstance(current_node, LeafNode):
             data.append((current_node.key, current_node.value))
-            data = sorted(data, key=lambda d: int.from_bytes(d[0], "big"))
-            idx = split_keys([d[0] for d in data], height)
-            left_data = data[:idx]
-            right_data = data[idx:]
-            if left_data:
-                left_node = await self._update_batch(left_data, EmptyNode(), height + 1)
-            else:
-                left_node = EmptyNode()
-            if right_data:
-                right_node = await self._update_batch(right_data, EmptyNode(), height + 1)
-            else:
-                right_node = EmptyNode()
-            current_node = BranchNode(left_node.hash, right_node.hash)
-    
-        elif isinstance(current_node, EmptyNode):
-            idx = split_keys([d[0] for d in data], height)
-            left_data = data[:idx]
-            right_data = data[idx:]
-            if left_data:
-                left_node = await self._update_batch(left_data, EmptyNode(), height + 1)
-            else:
-                left_node = EmptyNode()
-            if right_data:
-                right_node = await self._update_batch(right_data, EmptyNode(), height + 1)
-            else:
-                right_node = EmptyNode()
-            current_node = BranchNode(left_node.hash, right_node.hash)
-            
+            data = sorted(data, key=lambda d: d[0])
+
+        keys = [d[0] for d in data]
+        idx = split_keys(keys, lambda k: is_bit_set(k, height))
+        left_data = data[:idx]
+        right_data = data[idx:]
+        concurrent_update = height < 2 and left_data and right_data
+
+        if isinstance(current_node, LeafNode) or isinstance(current_node, EmptyNode):
+            left_node = EmptyNode()
+            right_node = EmptyNode()
         elif isinstance(current_node, BranchNode): 
-            idx = split_keys([d[0] for d in data], height)
-            left_data = data[:idx]
-            right_data = data[idx:]
             left_node = await self.get_node(current_node.left_hash)
+            right_node = await self.get_node(current_node.right_hash)
+
+        if concurrent_update:
+            left_node, right_node = await asyncio.gather(
+                self._update_batch(left_data, left_node, height + 1),
+                self._update_batch(right_data, right_node, height + 1)
+            )
+        else:
             if left_data:
                 left_node = await self._update_batch(left_data, left_node, height + 1)
-
-            right_node = await self.get_node(current_node.right_hash)
             if right_data:
                 right_node = await self._update_batch(right_data, right_node, height + 1)
 
-            current_node = BranchNode(left_node.hash, right_node.hash)
-
-        await self._db.delete(current_node_prev_hash)
+        await self._db.delete(current_node.hash)
+        current_node = BranchNode(left_node.hash, right_node.hash)
         await self._db.set(current_node.hash, current_node.data)
         return current_node
-
-        
-    
 
     async def remove(self, key: bytes) -> Coroutine[Any, Any, TreeNode]: 
         if len(key) != self.key_length:
             raise InvalidKeyError
 
         ancestor_nodes: list[BranchNode] = []
-        int_key = int.from_bytes(key, "big")
         current_node = self.root
         h = 0
         current_node_sibling: TreeNode =  EmptyNode()
@@ -259,17 +234,14 @@ class SparseMerkleTree(object):
         # current_node will be the leaf/node we are looking to remove
         while isinstance(current_node, BranchNode):
             ancestor_nodes.append(current_node)
-            d = digit_at(int_key, h, self.key_length)
-            if d == 0:
-                current_node_sibling = await self.get_node(current_node.right_hash)
-                current_node = await self.get_node(current_node.left_hash)
-            if d == 1:
+            if is_bit_set(key, h):
                 current_node_sibling = await self.get_node(current_node.left_hash)
                 current_node = await self.get_node(current_node.right_hash)
-            
+            else:
+                current_node_sibling = await self.get_node(current_node.right_hash)
+                current_node = await self.get_node(current_node.left_hash)
             h += 1
         
-
         # When current_node is empty, nothing to remove
         if isinstance(current_node, EmptyNode):
             return current_node
@@ -309,12 +281,11 @@ class SparseMerkleTree(object):
         while h > 0:
             p = ancestor_nodes[h - 1]
             h -= 1
-            d = digit_at(int_key, h, self.key_length)
 
-            if d == 0:
-                p.left_hash = bottom_node.hash
-            elif d == 1:
+            if is_bit_set(key, h):
                 p.right_hash = bottom_node.hash
+            else:
+                p.left_hash = bottom_node.hash
 
             await self._db.set(p.hash, p.data)
             bottom_node = p
