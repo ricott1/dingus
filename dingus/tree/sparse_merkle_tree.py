@@ -175,47 +175,50 @@ class SparseMerkleTree(object):
                 keys_set[key] = True
             
         sorted_data = sorted(data, key = lambda d: d[0])
-        self.root = await self._update_batch(sorted_data, self.root, 0)
+        keys = []
+        values = []
+        for key, value in sorted_data:
+            keys.append(key)
+            values.append(value)
+        self.root = await self._update_batch(keys, values, self.root, 0)
         return self.root
         
-    async def _update_batch(self, data: list[tuple[bytes, bytes]], current_node: TreeNode, height: int) -> Coroutine[Any, Any, TreeNode]: 
+    async def _update_batch(self, keys: list[bytes], values: list[bytes], current_node: TreeNode, height: int) -> Coroutine[Any, Any, TreeNode]: 
         assert height < 8 * self.key_length
-        if len(data) == 0:
+        assert len(keys) == len(values)
+        
+        if len(keys) == 0:
             return current_node
-        if len(data) == 1:
-            key, value = data[0]
-            return await self._update(key, value, current_node, height)
+        if len(keys) == 1:
+            return await self._update(keys[0], values[0], current_node, height)
 
-        # If current_node is a leaf, append it to data
         if isinstance(current_node, LeafNode):
-            data.append((current_node.key, current_node.value))
-            data = sorted(data, key=lambda d: d[0])
-
-        keys = [d[0] for d in data]
-        idx = split_keys(keys, lambda k: is_bit_set(k, height))
-        left_data = data[:idx]
-        right_data = data[idx:]
-        concurrent_update = height < 2 and left_data and right_data
-
-        if isinstance(current_node, LeafNode) or isinstance(current_node, EmptyNode):
+            if is_bit_set(current_node.key, height):
+                left_node = EmptyNode()
+                right_node = current_node
+            else:
+                left_node = current_node
+                right_node = EmptyNode()
+        elif isinstance(current_node, EmptyNode):
             left_node = EmptyNode()
             right_node = EmptyNode()
         elif isinstance(current_node, BranchNode): 
             left_node = await self.get_node(current_node.left_hash)
             right_node = await self.get_node(current_node.right_hash)
+            await self._db.delete(current_node.hash)
+        
+        idx = split_keys(keys, lambda k: is_bit_set(k, height))
 
+        concurrent_update = (height < 2) and (0 < idx < len(keys))
         if concurrent_update:
             left_node, right_node = await asyncio.gather(
-                self._update_batch(left_data, left_node, height + 1),
-                self._update_batch(right_data, right_node, height + 1)
+                self._update_batch(keys[:idx], values[:idx], left_node, height + 1),
+                self._update_batch(keys[idx:], values[idx:], right_node, height + 1)
             )
         else:
-            if left_data:
-                left_node = await self._update_batch(left_data, left_node, height + 1)
-            if right_data:
-                right_node = await self._update_batch(right_data, right_node, height + 1)
+            left_node = await self._update_batch(keys[:idx], values[:idx], left_node, height + 1)
+            right_node = await self._update_batch(keys[idx:], values[idx:], right_node, height + 1)
 
-        await self._db.delete(current_node.hash)
         current_node = BranchNode(left_node.hash, right_node.hash)
         await self._db.set(current_node.hash, current_node.data)
         return current_node

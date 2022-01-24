@@ -8,7 +8,7 @@ import os
 KEY_LENGTH = 32
 
 def create_test_case(n: int, key_length: int = KEY_LENGTH) -> list[tuple[bytes, bytes]]:
-    return [(os.urandom(key_length), os.urandom(32)) for _ in range(n)]
+    return [(b"\x00\x00\x00\x00" + os.urandom(key_length-4), os.urandom(32)) for _ in range(n)]
 
 def test_large_update(capsys) -> None:
     start_time = time.time()
