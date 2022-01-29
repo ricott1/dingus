@@ -26,7 +26,7 @@ def merkle_root(data: list[bytes]) -> bytes:
     rightTree = data[k:]
     return BranchNode(merkle_root(leftTree), merkle_root(rightTree)).hash
 
-def split_keys(keys: list[bytes], condition: Callable) -> int:
+def split_index(keys: list[bytes], condition: Callable) -> int:
     for idx, key in enumerate(keys):
         if condition(key):
             return idx
@@ -35,5 +35,8 @@ def split_keys(keys: list[bytes], condition: Callable) -> int:
 def is_bit_set(bits: bytes, i: int) -> bool:
     shifted = bits[i//8] << (i % 8)
     return (shifted & BIT_COMP) == BIT_COMP
+
+def key_to_bin(key: bytes, idx: int) -> int:
+    return key[idx]
 
 BIT_COMP = int.from_bytes(b"\x80", "big")

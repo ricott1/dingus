@@ -30,6 +30,7 @@ def start():
     os.environ["NETWORK"] = args.network[0]
     os.environ["BASE_PATH"] = args.base_path[0]
     Path(f"{os.environ['BASE_PATH']}/accounts").mkdir(parents=True, exist_ok=True)
+    Path(f"{os.environ['BASE_PATH']}/database").mkdir(parents=True, exist_ok=True)
 
     os.environ["NETWORK_ID"] = ""
     os.environ["BLOCK_TIME"] = "10"

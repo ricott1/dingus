@@ -36,12 +36,12 @@ def get_accounts_from_files() -> dict[str: account.Account]:
         accounts = {}
         account_files = os.listdir(f"{os.environ['BASE_PATH']}/accounts")
         for filename in account_files:
-            account = account.Account.from_file(filename)
+            act = account.Account.from_file(filename)
 
-            if not account:
+            if not act:
                 continue
 
-            accounts[account.address] = account
+            accounts[act.address] = act
         
         return accounts
 

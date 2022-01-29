@@ -1,28 +1,19 @@
-from .constants import BRANCH_PREFIX, DEFAULT_KEY_LENGTH, INTERNAL_LEAF_PREFIX, LEAF_PREFIX
+from .constants import DEFAULT_KEY_LENGTH, SUBTREE_PREFIX, DEFAULT_SUBTREE_HEIGHT
 from .types import LeafNode, BranchNode, SubTree, EmptyNode, TreeNode
+from .errors import *
 from .utils import split_index, is_bit_set
 from typing import Coroutine, Any
 import asyncio
 
 from dingus.db import InMemoryDB, RocksDB
 
-class MissingNodeError(Exception):
-    pass
 
-class EmptyValueError(Exception):
-    pass
-
-class InvalidKeyError(Exception):
-    pass
-
-class InvalidDataError(Exception):
-    pass
-
-
-class SparseMerkleTree(object):
-    def __init__(self, key_length: int = DEFAULT_KEY_LENGTH, db: str = "inmemorydb") -> None:
+class SkipMerkleTree(object):
+    def __init__(self, key_length: int = DEFAULT_KEY_LENGTH, subtree_height: int = DEFAULT_SUBTREE_HEIGHT, db: str = "rocksdb") -> None:
         self.key_length = key_length
-        self.root = EmptyNode()
+        self.subtree_height = subtree_height
+        self.subtree_nodes = 2**(self.subtree_height - 1)
+        self.root_hash = EmptyNode.hash
         if db == "inmemorydb":
             self._db = InMemoryDB()
         elif db == "rocksdb":
@@ -47,29 +38,40 @@ class SparseMerkleTree(object):
             f"{preamble}{BROWN('╰')}{left}"
         ])
 
-    async def get_node(self, node_hash: bytes) -> Coroutine[Any, Any, TreeNode]:
+    # async def _get_node(self, node_hash: bytes) -> Coroutine[Any, Any, TreeNode]: #Deprecated
+    #     if node_hash == EmptyNode.hash:
+    #         return EmptyNode()
+        
+    #     data = await self._db.get(node_hash)
+
+    #     if not data:
+    #         raise MissingNodeError
+
+    #     if data.startswith(LEAF_PREFIX):
+    #         key, value = LeafNode.parse(data, self.key_length)
+    #         return LeafNode(key, value)
+
+    #     left_hash, right_hash = BranchNode.parse(data)
+    #     return BranchNode(left_hash, right_hash)
+    
+    async def get_subtree(self, node_hash: bytes) -> Coroutine[Any, Any, SubTree]:
         if node_hash == EmptyNode.hash:
-            return EmptyNode()
+            return SubTree([0]*self.subtree_nodes, [])
         
         data = await self._db.get(node_hash)
-
         if not data:
             raise MissingNodeError
+        if not data.startswith(SUBTREE_PREFIX):
+            raise InvalidDataError
 
-        if data.startswith(LEAF_PREFIX):
-            key, value = LeafNode.parse(data, self.key_length)
-            return LeafNode(key, value)
-
-        if data.startswith(BRANCH_PREFIX):
-            left_hash, right_hash = BranchNode.parse(data)
-            return BranchNode(left_hash, right_hash)
+        structure, nodes = SubTree.parse(data, self.key_length)
+        return SubTree(structure, nodes)
         
-        raise InvalidDataError
-    
     async def set_node(self, node: TreeNode) -> None:
         await self._db.set(node.hash, node.data)
     
     async def write_to_db(self) -> None:
+        # re batch in memory nodes and write subtrees to db
         await self._db.write()
 
     async def update(self, key: bytes, value: bytes, starting_height: int = 0) -> Coroutine[Any, Any, TreeNode]: 
@@ -148,7 +150,8 @@ class SparseMerkleTree(object):
 
         return bottom_node
         
-    async def update_batch(self, data: list[tuple[bytes, bytes]], strict: bool = False, starting_height: int = 0) -> Coroutine[Any, Any, TreeNode]: 
+
+    async def update_batch(self, data: list[tuple[bytes, bytes]], strict: bool = False, starting_height: int = 0) -> Coroutine[Any, Any, bytes]: 
         """
         As specified in from https:#github.com/LiskHQ/lips/blob/master/proposals/lip-0039.md
         """
@@ -176,25 +179,70 @@ class SparseMerkleTree(object):
         for key, value in sorted_data:
             keys.append(key)
             values.append(value)
-        self.root = await self._update_batch(keys, values, self.root, starting_height)
-        await self.write_to_db()
-        return self.root
         
-    async def _update_batch(self, keys: list[bytes], values: list[bytes], current_node: TreeNode, height: int) -> Coroutine[Any, Any, TreeNode]: 
+        current_root = self.get_subtree(self.root_hash)
+        new_root = await self._update_batch(keys, values, current_root, starting_height)
+        await self.write_to_db()
+        return new_root.hash
+
+    def skip_to_bottom(self, keys: list[bytes], values: list[bytes], current_subtree: SubTree, height: int) -> TreeNode:
+        # If len(keys) == 0, return current subtree
+
+        # If len(keys) == 1, 
+        
+        # Split keys into bins, one for each bottom leaf, self.subtree_nodes in total
+
+        # Find relevant node in subtree for each bin
+
+        # If node is at the bottom (structure[i] == subtree_height) and it is a branch, we can call recursively _update_batch by getting the subtree from that node child
+
+        # Else, we call update subtree routine. 
+            # We complete subtree, and when height reached height + subtree_height, we need to create a new subtree
+            # IDEA: call same subroutine and check at the end whther to construct and store the subtree depending if height%subtree_height == 0
+            # how do you reconstruct the tree? need all nodes in subtree and their height
+
+        # Else, we are going to create a new branch. Depending on the height, this new branch will be in the same subtree or in a new one
+        
+    async def _update_batch(self, keys: list[bytes], values: list[bytes], current_subtree: SubTree, height: int) -> Coroutine[Any, Any, bytes]: 
         assert height < 8 * self.key_length
         assert len(keys) == len(values)
         
         if len(keys) == 0:
-            return current_node
+            return current_subtree
 
-        if len(keys) == 1:
-            return await self._update(keys[0], values[0], current_node, height)
-
-
-        if len(keys) == 1 and isinstance(current_node, EmptyNode):
+        if len(keys) == 1 and isinstance(current_subtree, EmptyNode):
             new_leaf = LeafNode(keys[0], values[0])
             await self.set_node(new_leaf)
             return new_leaf
+
+        
+        bins = [[(key, value) for key, value in zip(keys, values) if key[height] == bin] for bin in range(256)]
+        for h in range(self.subtree_height - 1):
+            _bins = []
+            for bin in bins:
+                _keys, _values = bin
+                idx = split_index(_keys, lambda k: is_bit_set(k, height + h)) 
+                _bins += [(_keys[:idx], _values[:idx]), (_keys[idx:], _values[idx:])]
+            bins = list(_bins)
+        
+        assert len(bins) == len(current_subtree.structure) == len(current_subtree.nodes)
+
+        for h, node, bin in zip(current_subtree.structure, current_subtree.nodes, bins):
+            if isinstance(current_subtree, BranchNode): 
+                assert h == self.subtree_height
+                left_subtree = await self.get_subtree(current_subtree.left_hash)
+                right_subtree = await self.get_subtree(current_subtree.right_hash)
+                await self._db.delete(current_subtree.hash)
+                left_subtree = await self._update_batch(bin[0], bin[1], left_subtree, height + 1)
+                right_subtree = await self._update_batch(bin[0], bin[1], right_subtree, height + 1)
+
+                new_root_hash - SubTree
+
+                current_subtree = SubTree(new_structure, new_nodes)
+                await self.set_node(current_subtree)
+                return current_subtree
+
+
 
         if isinstance(current_node, LeafNode):
             if is_bit_set(current_node.key, height):
@@ -211,7 +259,8 @@ class SparseMerkleTree(object):
             right_node = await self.get_node(current_node.right_hash)
             await self._db.delete(current_node.hash)
         
-        idx = split_index(keys, lambda k: is_bit_set(k, height))
+        
+            
 
         concurrent_update = (height < 2) and (0 < idx < len(keys))
         if concurrent_update:

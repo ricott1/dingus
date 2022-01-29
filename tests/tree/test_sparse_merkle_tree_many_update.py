@@ -1,7 +1,6 @@
 from typing import Coroutine
 from dingus.tree.sparse_merkle_tree import SparseMerkleTree
 from dingus.tree.constants import EMPTY_HASH
-import time
 import asyncio
 import os
 

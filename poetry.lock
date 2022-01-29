@@ -287,6 +287,18 @@ asyncio_client = ["aiohttp (>=3.4)"]
 client = ["requests (>=2.21.0)", "websocket-client (>=0.54.0)"]
 
 [[package]]
+name = "python-rocksdb"
+version = "0.7.0"
+description = "Python bindings for RocksDB"
+category = "main"
+optional = false
+python-versions = "*"
+
+[package.extras]
+doc = ["sphinx-rtd-theme", "sphinx"]
+test = ["pytest"]
+
+[[package]]
 name = "python-socketio"
 version = "5.5.1"
 description = "Socket.IO server and client for Python"
@@ -381,7 +393,7 @@ multidict = ">=4.0"
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.10"
-content-hash = "7db4c043a9a4b7bd117cb164bb764db62918d93ee1d76ca4e4f92214d15c6a6d"
+content-hash = "22433e328718aa97e1f173dc51676f264e7b9fe1fc21b59e06afd3c1353ef4c3"
 
 [metadata.files]
 aiohttp = [
@@ -785,6 +797,9 @@ pytest = [
 python-engineio = [
     {file = "python-engineio-4.3.0.tar.gz", hash = "sha256:fed35eeacfa21f53f1fc05ef0cadd65a50780364da3a2be7650eb92f928fdb11"},
     {file = "python_engineio-4.3.0-py3-none-any.whl", hash = "sha256:ad06a975f7e14cb3bb7137cbf70fd883804484d29acd58004d1db1e2a7fc0ad3"},
+]
+python-rocksdb = [
+    {file = "python-rocksdb-0.7.0.tar.gz", hash = "sha256:aa692fbd06d8ed4ad641feee2970062fe01120e87b645a29403c71c628639e4f"},
 ]
 python-socketio = [
     {file = "python-socketio-5.5.1.tar.gz", hash = "sha256:ac8e64d59a15d1c31a4fe8434f4ff16d0f640c824ba517dce7ca99e95f0cd36a"},

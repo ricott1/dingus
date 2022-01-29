@@ -1,5 +1,4 @@
 import socketio
-import asyncio
 import logging
 import os
 import time
@@ -7,25 +6,11 @@ import dingus.network.api as api
 import dingus.component as component
 from dingus.network.constants import SOCKET_ENDPOINTS
 
-class DingusClient(component.ComponentMixin, socketio.AsyncClient):
+class DingusClient(component.ComponentMixin):
 
     async def start(self) -> None:
         logging.info("Firing up Dingus socket client")
-        self.on("update.block", self.handle_new_block, '/blockchain')
-        self.on("*", self.log_event, '/blockchain')
-        net = os.environ["NETWORK"]
-        io_server = SOCKET_ENDPOINTS[net]
-        logging.info(f"Connecting to {io_server}...")
-        i = 0
-        while not self.connected:
-            i += 1
-            logging.info(f"Trying to connect: #{i}")
-            try:
-                await self.connect(io_server, namespaces=['/blockchain'], wait=False)
-                logging.info("Socket client connected!!")
-            except socketio.exceptions.ConnectionError as err:
-                logging.error(f"Connection error: {err}")
-        
+
         status = api.network_status()
         if "data" in status:
             self.emit_event("network_status_update", status, ["api_response"])
@@ -39,14 +24,6 @@ class DingusClient(component.ComponentMixin, socketio.AsyncClient):
         prices = api.market_prices()
         if "data" in prices:
             self.emit_event("market_prices_update", prices["data"], ["api_response"])
-        
-    def stop(self) -> None:
-        if self.connected:
-            logging.info("Disconnecting Dingus socket client")
-            try:
-                asyncio.wait(self.disconnect())
-            except Exception as e:
-                print(e)
 
     async def handle_event(self, event: dict) -> None:
         if event.name == "request_block":
@@ -80,11 +57,6 @@ class DingusClient(component.ComponentMixin, socketio.AsyncClient):
                 }
                 default[event.data["key"]] = event.data["value"]
                 self.emit_event(name, {"summary": default}, ["api_response"])
-
-    def handle_new_block(self, response: dict) -> None:
-        status = api.network_status()
-        self.emit_event("network_status_update", status, ["service_subscription"])
-        self.last_update_time = status["meta"]["lastUpdate"]
 
     def log_event(self, name:str, response: dict) -> None:
         if "data" in response:
