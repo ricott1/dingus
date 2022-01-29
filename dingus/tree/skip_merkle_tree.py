@@ -14,7 +14,7 @@ class SkipMerkleTree(object):
         self.subtree_height = subtree_height
         self.subtree_nodes = 2**(self.subtree_height - 1)
         self.root_hash = EmptyNode.hash
-        if db == "inmemorydb":
+        if db == "inmemorydb": 
             self._db = InMemoryDB()
         elif db == "rocksdb":
             self._db = RocksDB()
