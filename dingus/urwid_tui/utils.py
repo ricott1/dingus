@@ -12,42 +12,47 @@ PALETTE = [
     ("background_focus", "black", "white", "standout"),
     ("green", "light green", ""),
     ("yellow", "yellow", ""),
-    ("red", "light red", "")
+    ("red", "light red", ""),
 ]
 
 
 class ButtonLabel(urwid.SelectableIcon):
     def set_text(self, label):
-        '''
+        """
         set_text is invoked by Button.set_label
-        '''
+        """
         self.__super.set_text(label)
         self._cursor_position = -1
 
 
 class MyButton(urwid.Button):
-    '''
+    """
     - override __init__ to use our ButtonLabel instead of urwid.SelectableIcon
 
     - make button_left and button_right plain strings and variable width -
       any string, including an empty string, can be set and displayed
 
     - otherwise, we leave Button behaviour unchanged
-    '''
+    """
+
     button_left = "["
     button_right = "]"
 
-    def __init__(self, label, on_press=None, user_args=None, borders=True, disabled=False):
+    def __init__(
+        self, label, on_press=None, user_args=None, borders=True, disabled=False
+    ):
         self._label = ButtonLabel("")
         if borders:
-            cols = urwid.Columns([
-                ('fixed', len(self.button_left), urwid.Text(self.button_left)),
-                self._label,
-                ('fixed', len(self.button_right), urwid.Text(self.button_right))],
-                dividechars=1)
+            cols = urwid.Columns(
+                [
+                    ("fixed", len(self.button_left), urwid.Text(self.button_left)),
+                    self._label,
+                    ("fixed", len(self.button_right), urwid.Text(self.button_right)),
+                ],
+                dividechars=1,
+            )
         else:
-            cols = urwid.Columns([self._label],
-                                 dividechars=0)
+            cols = urwid.Columns([self._label], dividechars=0)
 
         super(urwid.Button, self).__init__(cols)
 
@@ -67,7 +72,8 @@ class TitleFrame(urwid.Frame):
         if _attribute:
             _title = [(_attribute, t) for t in _title]
         bigtext = urwid.Pile(
-            [urwid.Padding(urwid.BigText(t, _font), 'center', None) for t in _title])
+            [urwid.Padding(urwid.BigText(t, _font), "center", None) for t in _title]
+        )
 
         bigtext = urwid.Filler(bigtext)
         super().__init__(bigtext)
@@ -87,9 +93,10 @@ def create_button(label, align="center", **kwargs):
     btn._label.align = align
     return btn
 
+
 def rgb_list_to_text(rgb_list: list[tuple[int]]) -> str:
     text = []
-    w = h = int(len(rgb_list)**0.5)
+    w = h = int(len(rgb_list) ** 0.5)
     for y in range(h):
         for x in range(w):
             r, g, b = rgb_list[x + y * w]
@@ -99,17 +106,19 @@ def rgb_list_to_text(rgb_list: list[tuple[int]]) -> str:
 
     return text
 
+
 def lisk32_to_avatar(base32_address: str) -> list[tuple[int]]:
     address = utils.get_address_from_lisk32_address(base32_address)
     avatar = []
     r, g, b = [utils.hash(bytes.fromhex(f"0{i}") + address) for i in range(3)]
     color_bin_size = 32
     for i in range(0, len(r), 2):
-        _r = int.from_bytes(r[i:i+1], "big")//color_bin_size*color_bin_size
-        _g = int.from_bytes(g[i:i+1], "big")//color_bin_size*color_bin_size
-        _b = int.from_bytes(b[i:i+1], "big")//color_bin_size*color_bin_size
+        _r = int.from_bytes(r[i : i + 1], "big") // color_bin_size * color_bin_size
+        _g = int.from_bytes(g[i : i + 1], "big") // color_bin_size * color_bin_size
+        _b = int.from_bytes(b[i : i + 1], "big") // color_bin_size * color_bin_size
         avatar.append((_r, _g, _b))
     return avatar
+
 
 def avatar(base32_address: str) -> str:
     return rgb_list_to_text(lisk32_to_avatar(base32_address))

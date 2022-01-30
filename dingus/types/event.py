@@ -8,4 +8,3 @@ class Event(object):
     name: str
     data: dict[str, Any]
     tags: list[str]
-        

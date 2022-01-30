@@ -8,8 +8,10 @@ import os
 
 AccountType = str | int | keys.PublicKey | bool
 
+
 class InvalidAccountFileError(Exception):
     pass
+
 
 @dataclass
 class Account(object):
@@ -46,16 +48,16 @@ class Account(object):
         if "address" not in data:
             logging.error(f"utils.load_account Missing address")
             raise InvalidAccountFileError
-        
+
         return Account.from_dict(data)
-    
+
     def to_dict(self) -> dict[str, AccountType]:
         _dict: dict[str, AccountType] = {**vars(self).items()}
         if self.public_key:
             _dict["public_key"] = self.public_key.hexbytes().hex()
-        
+
         return _dict
-    
+
     def save(self, filename: str) -> None:
         try:
             with open(f"{os.environ['BASE_PATH']}/accounts/{filename}", "w") as f:
@@ -63,4 +65,3 @@ class Account(object):
         except Exception as err:
             logging.error(f"utils.save_account {err}")
             raise err
-

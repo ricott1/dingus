@@ -11,11 +11,7 @@ ID_STRING_LENGTH = 64
 EDSA_SIGNATURE_LENGTH = 64
 EDSA_PUBLIC_KEY_LENGTH = 32
 
-EVENT_TAGS = [
-    "user_input",
-    "service_subscription",
-    "api_response"
-]
+EVENT_TAGS = ["user_input", "service_subscription", "api_response"]
 
 BALANCE_TRANSFER_LENGTH = 150
 BALANCE_TRANSFER_MAX_DATA_LENGTH = 64
