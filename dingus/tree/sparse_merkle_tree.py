@@ -14,7 +14,7 @@ from dingus.db import InMemoryDB, RocksDB
 
 class SparseMerkleTree(object):
     def __init__(
-        self, key_length: int = DEFAULT_KEY_LENGTH, db: str = "rocksdb"
+        self, key_length: int = DEFAULT_KEY_LENGTH, db: str = "inmemorydb"
     ) -> None:
         self.key_length = key_length
         self.root = EmptyNode()
@@ -22,6 +22,15 @@ class SparseMerkleTree(object):
             self._db = InMemoryDB()
         elif db == "rocksdb":
             self._db = RocksDB()
+        self.stats = {
+            "db_set": 0,
+            "db_get": 0,
+            "db_delete": 0,
+            "hashes": 0,
+            "leaf_created": 0,
+            "branch_created": 0,
+            "update_calls": 0,
+        }
 
     async def print(
         self, node: TreeNode, preamble: str = "    ", hash_length: int = 4
@@ -31,10 +40,11 @@ class SparseMerkleTree(object):
             return "∅"
 
         if isinstance(node, LeafNode):
+            key = node.key[:4]
             bin_key = (
-                bin(int.from_bytes(node.key, "big"))
+                bin(int.from_bytes(key, "big"))
                 .lstrip("0b")
-                .zfill(8 * len(node.key))
+                .zfill(8 * len(key))
             )
             return f"─<🌿{bin_key}:{node.hash.hex()[:hash_length]}"
 
@@ -55,22 +65,26 @@ class SparseMerkleTree(object):
             return EmptyNode()
 
         data = await self._db.get(node_hash)
+        self.stats["db_get"] += 1
 
         if not data:
             raise MissingNodeError
 
         if data.startswith(LEAF_PREFIX):
             key, value = LeafNode.parse(data, self.key_length)
+            self.stats["leaf_created"] += 1
             return LeafNode(key, value)
 
         if data.startswith(BRANCH_PREFIX):
             left_hash, right_hash = BranchNode.parse(data)
+            self.stats["branch_created"] += 1
             return BranchNode(left_hash, right_hash)
 
         raise InvalidDataError
 
     async def set_node(self, node: TreeNode) -> None:
         await self._db.set(node.hash, node.data)
+        self.stats["db_set"] += 1
 
     async def write_to_db(self) -> None:
         await self._db.write()
@@ -95,7 +109,9 @@ class SparseMerkleTree(object):
     async def _update(
         self, key: bytes, value: bytes, current_node: TreeNode, height: int
     ) -> Coroutine[Any, Any, TreeNode]:
+        self.stats["update_calls"] += 1
         new_leaf = LeafNode(key, value)
+        self.stats["leaf_created"] += 1
         await self.set_node(new_leaf)
 
         # if the current_node is EMPTY node then assign it to leaf node and return
@@ -126,6 +142,7 @@ class SparseMerkleTree(object):
             while is_bit_set(key, h) == is_bit_set(current_node.key, h):
                 # Create branch node with empty value
                 new_branch = BranchNode(EmptyNode.hash, EmptyNode.hash)
+                self.stats["branch_created"] += 1
                 # Append defaultBranch to ancestor_nodes
                 ancestor_nodes.append(new_branch)
                 h += 1
@@ -135,6 +152,7 @@ class SparseMerkleTree(object):
                 bottom_node = BranchNode(current_node.hash, new_leaf.hash)
             else:
                 bottom_node = BranchNode(new_leaf.hash, current_node.hash)
+            self.stats["branch_created"] += 1
             await self.set_node(bottom_node)
 
         # Finally update all branch nodes in ancestor_nodes
@@ -143,6 +161,7 @@ class SparseMerkleTree(object):
         while h > height:
             p = ancestor_nodes.pop()
             await self._db.delete(p.hash)
+            self.stats["db_delete"] += 1
             h -= 1
             if is_bit_set(key, h):
                 p.right_hash = bottom_node.hash
@@ -198,6 +217,7 @@ class SparseMerkleTree(object):
         current_node: TreeNode,
         height: int,
     ) -> Coroutine[Any, Any, TreeNode]:
+        self.stats["update_calls"] += 1
         assert height < 8 * self.key_length
         assert len(keys) == len(values)
 
@@ -214,6 +234,7 @@ class SparseMerkleTree(object):
         if isinstance(current_node, EmptyNode):
             if len(keys) == 1:
                 new_leaf = LeafNode(keys[0], values[0])
+                self.stats["leaf_created"] += 1
                 await self.set_node(new_leaf)
                 return new_leaf
             left_node = EmptyNode()
@@ -229,24 +250,26 @@ class SparseMerkleTree(object):
             left_node = await self.get_node(current_node.left_hash)
             right_node = await self.get_node(current_node.right_hash)
             await self._db.delete(current_node.hash)
+            self.stats["db_delete"] += 1
 
         idx = split_index(keys, lambda k: is_bit_set(k, height))
 
-        concurrent_update = (height < 8) and (0 < idx < len(keys))
-        if concurrent_update:
-            left_node, right_node = await asyncio.gather(
-                self._update_batch(keys[:idx], values[:idx], left_node, height + 1),
-                self._update_batch(keys[idx:], values[idx:], right_node, height + 1),
-            )
-        else:
-            left_node = await self._update_batch(
-                keys[:idx], values[:idx], left_node, height + 1
-            )
-            right_node = await self._update_batch(
-                keys[idx:], values[idx:], right_node, height + 1
-            )
+        # concurrent_update = (height < 8) and (0 < idx < len(keys))
+        # if concurrent_update:
+        #     left_node, right_node = await asyncio.gather(
+        #         self._update_batch(keys[:idx], values[:idx], left_node, height + 1),
+        #         self._update_batch(keys[idx:], values[idx:], right_node, height + 1),
+        #     )
+        # else:
+        left_node = await self._update_batch(
+            keys[:idx], values[:idx], left_node, height + 1
+        )
+        right_node = await self._update_batch(
+            keys[idx:], values[idx:], right_node, height + 1
+        )
 
         current_node = BranchNode(left_node.hash, right_node.hash)
+        self.stats["branch_created"] += 1
         await self.set_node(current_node)
         return current_node
 
@@ -289,6 +312,7 @@ class SparseMerkleTree(object):
             # current_node has a leaf sibling,
             # remove the leaf and move sibling up the tree
             await self._db.delete(current_node.hash)
+            self.stats["db_delete"] += 1
             bottom_node = current_node_sibling
 
             h -= 1
@@ -303,6 +327,7 @@ class SparseMerkleTree(object):
                     break
 
                 await self._db.delete(p.hash)
+                self.stats["db_delete"] += 1
                 h -= 1
 
         # finally update all branch nodes in ancestor_nodes.

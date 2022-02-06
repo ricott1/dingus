@@ -6,8 +6,10 @@ import os
 
 KEY_LENGTH = 32
 
+
 def create_test_case(n: int, key_length: int = KEY_LENGTH) -> list[tuple[bytes, bytes]]:
     return [(os.urandom(key_length), os.urandom(32)) for _ in range(n)]
+
 
 def test_update() -> None:
     cases = create_test_case(10000)
@@ -17,6 +19,7 @@ def test_update() -> None:
 
     assert update_smt.root.hash == batch_smt.root.hash
 
+
 async def case_testing(cases) -> Coroutine[None, None, SparseMerkleTree]:
     _smt = SparseMerkleTree(KEY_LENGTH)
     assert _smt.root.hash == EMPTY_HASH
@@ -24,24 +27,24 @@ async def case_testing(cases) -> Coroutine[None, None, SparseMerkleTree]:
     for k, v in cases:
         new_root = await _smt.update(k, v)
         assert _smt.root.hash == new_root.hash
-    
+
     return _smt
+
 
 async def case_testing_batch(cases) -> Coroutine[None, None, SparseMerkleTree]:
     _smt = SparseMerkleTree(KEY_LENGTH)
     assert _smt.root.hash == EMPTY_HASH
-    
-    new_root = await _smt.update_batch(cases[:500], strict = True)
+
+    new_root = await _smt.update_batch(cases[:500], strict=True)
     assert _smt.root.hash == new_root.hash
 
-    new_root = await _smt.update_batch(cases[500:1500], strict = True)
+    new_root = await _smt.update_batch(cases[500:1500], strict=True)
     assert _smt.root.hash == new_root.hash
 
-    new_root = await _smt.update_batch(cases[1500:7000], strict = True)
+    new_root = await _smt.update_batch(cases[1500:7000], strict=True)
     assert _smt.root.hash == new_root.hash
 
-    new_root = await _smt.update_batch(cases[7000:], strict = True)
+    new_root = await _smt.update_batch(cases[7000:], strict=True)
     assert _smt.root.hash == new_root.hash
 
     return _smt
-

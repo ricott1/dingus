@@ -21,7 +21,7 @@ def merkle_root(data: list[bytes]) -> bytes:
         return LeafNode(b"", data[0]).hash
 
     # Largest power of two smaller than size
-    k = 2 ** (math.floor(math.log2(size - 1)))
+    k = 2 << (math.floor(math.log2(size - 1)))
     # Split the data array into 2 subtrees. leftTree from index 0 to index k (not included), rightTree for the rest
     leftTree = data[:k]
     rightTree = data[k:]
@@ -31,6 +31,13 @@ def merkle_root(data: list[bytes]) -> bytes:
 def split_index(keys: list[bytes], condition: Callable) -> int:
     for idx, key in enumerate(keys):
         if condition(key):
+            return idx
+    return len(keys)
+
+
+def split_keys_index(keys: list[bytes], byte_idx: int, target: int) -> int:
+    for idx, k in enumerate(keys):
+        if k[byte_idx] > target:
             return idx
     return len(keys)
 
