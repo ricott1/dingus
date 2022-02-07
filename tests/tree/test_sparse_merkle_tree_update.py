@@ -15,14 +15,14 @@ def create_test_case(n: int, key_length: int = KEY_LENGTH) -> list[tuple[bytes, 
 
 def test_update(capsys) -> None:
     start_time = time.time()
-    initial_case = create_test_case(40)
+    initial_case = create_test_case(50)
     extra_case = create_test_case(40)
     with capsys.disabled():
         print(f"\ncreate test cases: {time.time() - start_time:.2f}s")
 
     # update_smt = asyncio.run(case_testing(initial_case, extra_case, capsys))
-    in_batch_smt = asyncio.run(case_testing_batch(initial_case, [], capsys))
-    in_skip_smt = asyncio.run(case_testing_skip(initial_case, [], capsys))
+    # in_batch_smt = asyncio.run(case_testing_batch(initial_case, [], capsys))
+    # in_skip_smt = asyncio.run(case_testing_skip(initial_case, [], capsys))
 
     batch_smt = asyncio.run(case_testing_batch(initial_case, extra_case, capsys))
     skip_smt = asyncio.run(case_testing_skip(initial_case, extra_case, capsys))
@@ -77,7 +77,7 @@ async def case_testing(
 async def case_testing_batch(
     initial_case, extra_case, capsys
 ) -> Coroutine[None, None, SparseMerkleTree]:
-    _smt = SparseMerkleTree(KEY_LENGTH)
+    _smt = SparseMerkleTree(KEY_LENGTH, db="rocksdb")
     assert _smt.root.hash == EMPTY_HASH
     start_time = time.time()
     new_root = await _smt.update_batch(initial_case, strict=True)
@@ -110,7 +110,7 @@ async def case_testing_batch(
 async def case_testing_skip(
     initial_case, extra_case, capsys
 ) -> Coroutine[None, None, SparseMerkleTree]:
-    _skmt = SkipMerkleTree(KEY_LENGTH)
+    _skmt = SkipMerkleTree(KEY_LENGTH, db="rocksdb")
     assert _skmt.root.hash == EMPTY_HASH
     start_time = time.time()
     new_root = await _skmt.update(initial_case, strict=True)

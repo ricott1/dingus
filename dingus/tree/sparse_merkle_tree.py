@@ -21,7 +21,7 @@ class SparseMerkleTree(object):
         if db == "inmemorydb":
             self._db = InMemoryDB()
         elif db == "rocksdb":
-            self._db = RocksDB()
+            self._db = RocksDB(filename="./database/smt.db")
         self.stats = {
             "db_set": 0,
             "db_get": 0,

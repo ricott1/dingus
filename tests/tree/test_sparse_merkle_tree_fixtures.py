@@ -16,7 +16,7 @@ def get_cases() -> list[dict]:
         })
     return _cases
 
-test_cases = get_cases()
+test_cases = get_cases()[-1:]
 
 def test_update_fixtures():
     for case in test_cases:
@@ -24,7 +24,7 @@ def test_update_fixtures():
 
 
 async def update_test(case):
-    _smt = smt.SparseMerkleTree()
+    _smt = smt.SparseMerkleTree(db="rocksdb")
     keys = case["keys"]
     values = case["values"]
     root = case["root"]
@@ -49,16 +49,16 @@ async def batch_test(case, capsys):
     values = case["values"]
     root = case["root"]
 
-    _smt = smt.SparseMerkleTree()
+    _smt = smt.SparseMerkleTree(db="rocksdb")
 
     assert _smt.root.hash == EMPTY_HASH
     data = list(zip(keys, values))
     new_root = await _smt.update_batch(data, strict=True)
     
     assert _smt.root.hash == root == new_root.hash
-    # with capsys.disabled():
-    #     print("\n BATCH TREE")
-    #     print(await _smt.print(_smt.root))
+    with capsys.disabled():
+        print("\n BATCH TREE")
+        print(_smt.stats)
     
 
 def test_skip_merkle_tree_fixtures(capsys):
@@ -71,14 +71,13 @@ async def skip_test(case, capsys):
     values = case["values"]
     root = case["root"]
 
-    _skmt = skmt.SkipMerkleTree()
+    _skmt = skmt.SkipMerkleTree(db="rocksdb")
 
     assert _skmt.root.hash == EMPTY_HASH
     data = list(zip(keys, values))
     new_root = await _skmt.update(data, strict=True)
-    if not _skmt.root.hash == root == new_root.hash:
-        with capsys.disabled():
-            print("\n SKIP TREE")
-            print(await _skmt.print(_skmt.root))
+    with capsys.disabled():
+        print("\n SKIP TREE")
+        print(_skmt.stats)
 
     assert _skmt.root.hash == root == new_root.hash

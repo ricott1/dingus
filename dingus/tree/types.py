@@ -10,7 +10,7 @@ from .constants import (
     BRANCH_PREFIX,
     EMPTY_HASH,
     NODE_HASH_SIZE,
-    DEFAULT_SUBTREE_HEIGHT,
+    DEFAULT_SUBTREE_MAX_HEIGHT,
     EMPTY_HASH_PLACEHOLDER_PREFIX,
 )
 
@@ -86,6 +86,13 @@ class BranchNode(object):
     def hash(self) -> bytes:
         return hash(self.data)
 
+@dataclass
+class SubTreeBranchNode(object):
+    hash: bytes
+
+    @classmethod
+    def parse(cls, data: bytes) -> bytes:
+        return data[len(BRANCH_PREFIX) :]
 
 @dataclass
 class EmptyNode(object):
@@ -99,16 +106,19 @@ class SubTree(object):
 
     @classmethod
     def structure_to_bins(
-        cls, structure, subtree_height: int = DEFAULT_SUBTREE_HEIGHT
+        cls, structure, subtree_height: int = DEFAULT_SUBTREE_MAX_HEIGHT
     ) -> list[tuple[int, int]]:
         V = 0
         bins = []
-        print(len(structure))
+        
         for h in structure:
-            bins.append((V, V + (2 << (subtree_height - h))))
-            V += (2 << (subtree_height - h))
-        print(len(bins), V, bins[0])
-        assert V == (2<<subtree_height)
+            bins.append((V, V + (2 ** (subtree_height - h))))
+            V += (2 ** (subtree_height - h))
+        
+        # if V != (2<<subtree_height):
+        #     print(len(structure), structure[0])
+        #     print(len(bins), V, bins[0])
+        assert V == (2**subtree_height)
         
         return bins
 
@@ -117,7 +127,7 @@ class SubTree(object):
         cls,
         data: bytes,
         key_length: int = DEFAULT_KEY_LENGTH,
-        subtree_height: int = DEFAULT_SUBTREE_HEIGHT,
+        subtree_height: int = DEFAULT_SUBTREE_MAX_HEIGHT,
     ) -> tuple[list[int], list[TreeNode]]:
         subtree_nodes = data[0] + 1
         assert 1 <= subtree_nodes <= (2<<subtree_height)
@@ -131,7 +141,7 @@ class SubTree(object):
 
         nodes: list[TreeNode] = []
         leaf_data_length = len(LEAF_PREFIX) + key_length + NODE_HASH_SIZE
-        branch_data_length = len(BRANCH_PREFIX) + NODE_HASH_SIZE + NODE_HASH_SIZE
+        subtree_branch_data_length = len(BRANCH_PREFIX) + NODE_HASH_SIZE
 
         while len(nodes_data):
             if nodes_data.startswith(LEAF_PREFIX):
@@ -139,11 +149,11 @@ class SubTree(object):
                 node = LeafNode(key, value)
                 nodes_data = nodes_data[leaf_data_length:]
             elif nodes_data.startswith(BRANCH_PREFIX):
-                left_hash, right_hash = BranchNode.parse(
-                    nodes_data[:branch_data_length]
+                _hash = SubTreeBranchNode.parse(
+                    nodes_data[:subtree_branch_data_length]
                 )
-                node = BranchNode(left_hash, right_hash)
-                nodes_data = nodes_data[branch_data_length:]
+                node = SubTreeBranchNode(_hash)
+                nodes_data = nodes_data[subtree_branch_data_length:]
             elif nodes_data.startswith(EMPTY_HASH_PLACEHOLDER_PREFIX):
                 node = EmptyNode()
                 nodes_data = nodes_data[len(EMPTY_HASH_PLACEHOLDER_PREFIX) :]
@@ -164,8 +174,10 @@ class SubTree(object):
         for node in self.nodes:
             if isinstance(node, EmptyNode):
                 nodes_data += EMPTY_HASH_PLACEHOLDER_PREFIX
-            else:
+            elif isinstance(node, LeafNode):
                 nodes_data += node.data
+            elif isinstance(node, SubTreeBranchNode):
+                nodes_data += node.hash
         return subtree_nodes + structure_data + nodes_data
 
     @property
@@ -204,4 +216,4 @@ class SubTree(object):
         return hashes[0]
 
 
-TreeNode = LeafNode | BranchNode | EmptyNode
+TreeNode = LeafNode | BranchNode | EmptyNode | SubTreeBranchNode

@@ -3,25 +3,12 @@ from dingus.tree.constants import (
     EMPTY_HASH_PLACEHOLDER_PREFIX,
     LEAF_PREFIX,
     DEFAULT_SUBTREE_NODES,
-    DEFAULT_SUBTREE_HEIGHT,
+    DEFAULT_SUBTREE_MAX_HEIGHT,
 )
 from dingus.tree.types import SubTree
 import os
-import time
-
-def test_hashing(capsys):
-    start_time = time.time()
-    data = [os.urandom(1500) for _ in range(20000)]
-    with capsys.disabled():
-        print(f"\ndata: {time.time() - start_time:.2f}s")
-
-    for d in data:
-        hash(d)
-    with capsys.disabled():
-        print(f"\nhashing: {time.time() - start_time:.2f}s")
 
 def test_nodes():
-    return
     r"""
     O
     """
@@ -33,7 +20,7 @@ def test_nodes():
     assert structure == [0]
     assert len(structure) == len(nodes) == 1
     assert SubTree.structure_to_bins(structure) == [
-        (0, 2<<DEFAULT_SUBTREE_HEIGHT),
+        (0, 2**DEFAULT_SUBTREE_MAX_HEIGHT),
     ]
     st = SubTree(structure, nodes)
     assert st.hash
@@ -51,8 +38,8 @@ def test_nodes():
     assert structure == [1, 1]
     assert len(structure) == len(nodes) == 2
     assert SubTree.structure_to_bins(structure) == [
-        (0, 2 << (DEFAULT_SUBTREE_HEIGHT - 1)),
-        (2 << (DEFAULT_SUBTREE_HEIGHT - 1), 2<<DEFAULT_SUBTREE_HEIGHT),
+        (0, 2 ** (DEFAULT_SUBTREE_MAX_HEIGHT - 1)),
+        (2 ** (DEFAULT_SUBTREE_MAX_HEIGHT - 1), 2**DEFAULT_SUBTREE_MAX_HEIGHT),
     ]
     st = SubTree(structure, nodes)
     assert st.hash
@@ -65,8 +52,8 @@ def test_nodes():
     assert structure == [1, 1]
     assert len(structure) == len(nodes) == 2
     assert SubTree.structure_to_bins(structure) == [
-        (0, 2 << (DEFAULT_SUBTREE_HEIGHT - 1)),
-        (2 << (DEFAULT_SUBTREE_HEIGHT - 1), 2<<DEFAULT_SUBTREE_HEIGHT),
+        (0, 2 ** (DEFAULT_SUBTREE_MAX_HEIGHT - 1)),
+        (2 ** (DEFAULT_SUBTREE_MAX_HEIGHT - 1), 2**DEFAULT_SUBTREE_MAX_HEIGHT),
     ]
     st = SubTree(structure, nodes)
     assert st.hash
@@ -79,8 +66,8 @@ def test_nodes():
     assert structure == [1, 1]
     assert len(structure) == len(nodes) == 2
     assert SubTree.structure_to_bins(structure) == [
-        (0, 2 << (DEFAULT_SUBTREE_HEIGHT - 1)),
-        (2 << (DEFAULT_SUBTREE_HEIGHT - 1), 2<<DEFAULT_SUBTREE_HEIGHT),
+        (0, 2 ** (DEFAULT_SUBTREE_MAX_HEIGHT - 1)),
+        (2 ** (DEFAULT_SUBTREE_MAX_HEIGHT - 1), 2**DEFAULT_SUBTREE_MAX_HEIGHT),
     ]
     st = SubTree(structure, nodes)
     assert st.hash
@@ -106,14 +93,14 @@ def test_nodes():
     assert structure == [1, 2, 2]
     assert len(structure) == len(nodes) == 3
     assert SubTree.structure_to_bins(structure) == [
-        (0, 2 << (DEFAULT_SUBTREE_HEIGHT - 1)),
+        (0, 2 ** (DEFAULT_SUBTREE_MAX_HEIGHT - 1)),
         (
-            2 << (DEFAULT_SUBTREE_HEIGHT - 1),
-            (2 << (DEFAULT_SUBTREE_HEIGHT - 1)) + (2 << (DEFAULT_SUBTREE_HEIGHT - 2)),
+            2 ** (DEFAULT_SUBTREE_MAX_HEIGHT - 1),
+            (2 ** (DEFAULT_SUBTREE_MAX_HEIGHT - 1)) + (2 ** (DEFAULT_SUBTREE_MAX_HEIGHT - 2)),
         ),
         (
-            (2 << (DEFAULT_SUBTREE_HEIGHT - 1)) + (2 << (DEFAULT_SUBTREE_HEIGHT - 2)),
-            2<<DEFAULT_SUBTREE_HEIGHT,
+            (2 ** (DEFAULT_SUBTREE_MAX_HEIGHT - 1)) + (2 ** (DEFAULT_SUBTREE_MAX_HEIGHT - 2)),
+            2**DEFAULT_SUBTREE_MAX_HEIGHT,
         ),
     ]
     st = SubTree(structure, nodes)
@@ -127,13 +114,14 @@ def test_nodes():
    O   O O   O
     """
     nodes_max_idx = (DEFAULT_SUBTREE_NODES - 1).to_bytes(1, "big")
-    structure_data = (DEFAULT_SUBTREE_HEIGHT - 1).to_bytes(1, "big") * DEFAULT_SUBTREE_NODES
+    structure_data = DEFAULT_SUBTREE_MAX_HEIGHT.to_bytes(1, "big") * DEFAULT_SUBTREE_NODES
     nodes_data = b"".join(
-        [BRANCH_PREFIX + os.urandom(64) for _ in range(DEFAULT_SUBTREE_NODES)]
+        [BRANCH_PREFIX + os.urandom(32) for _ in range(DEFAULT_SUBTREE_NODES)]
     )
     data = nodes_max_idx + structure_data + nodes_data
     structure, nodes = SubTree.parse(data)
-    assert structure == [DEFAULT_SUBTREE_HEIGHT - 1] * DEFAULT_SUBTREE_NODES
+    assert structure == [DEFAULT_SUBTREE_MAX_HEIGHT] * DEFAULT_SUBTREE_NODES
+    print(len(structure))
     assert len(structure) == len(nodes) == DEFAULT_SUBTREE_NODES
     assert SubTree.structure_to_bins(structure) == [
         (i, (i + 1)) for i in range(DEFAULT_SUBTREE_NODES)

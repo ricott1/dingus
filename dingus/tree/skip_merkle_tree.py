@@ -1,9 +1,8 @@
-from queue import Empty
 from .constants import (
     DEFAULT_KEY_LENGTH,
-    DEFAULT_SUBTREE_HEIGHT,
+    DEFAULT_SUBTREE_MAX_HEIGHT,
 )
-from .types import LeafNode, BranchNode, SubTree, EmptyNode, TreeNode
+from .types import LeafNode, BranchNode, SubTree, EmptyNode, TreeNode, SubTreeBranchNode
 from .errors import *
 from .utils import split_index, is_bit_set, split_keys_index
 from typing import Coroutine, Any
@@ -16,7 +15,7 @@ class SkipMerkleTree(object):
     def __init__(
         self,
         key_length: int = DEFAULT_KEY_LENGTH,
-        subtree_height: int = DEFAULT_SUBTREE_HEIGHT,
+        subtree_height: int = DEFAULT_SUBTREE_MAX_HEIGHT,
         db: str = "inmemorydb",
     ) -> None:
         self.key_length = key_length
@@ -26,7 +25,7 @@ class SkipMerkleTree(object):
         if db == "inmemorydb":
             self._db = InMemoryDB()
         elif db == "rocksdb":
-            self._db = RocksDB()
+            self._db = RocksDB(filename="./database/skmt.db")
         self.stats = {
             "db_set": 0,
             "db_get": 0,
@@ -139,7 +138,7 @@ class SkipMerkleTree(object):
         keys: list[bytes],
         values: list[bytes],
         current_subtree: SubTree,
-        height: int,
+        height: int
     ) -> Coroutine[Any, Any, SubTree]:
 
         self.stats["update_subtree_calls"] += 1
@@ -148,42 +147,45 @@ class SkipMerkleTree(object):
         if len(keys) == 0:
             return current_subtree
 
-        await self._db.delete(current_subtree.hash)
-        self.stats["db_delete"] += 1
-
         new_nodes = []
         new_structure = []
         V = 0
-        print("\nUPDATING SKIP", len(keys))
-        # print(current_subtree)
         for i in range(len(current_subtree.nodes)):
             h = current_subtree.structure[i]
             current_node = current_subtree.nodes[i]
-            print("\nCURRENT BIN",h, V, V + (2 << (self.subtree_height - h)))
-            print(current_node.hash.hex()[:4])
-            # The following only works for the default value DEFAULT_SUBTREE_HEIGHT = 8
+
+            # The following only works for the default value DEFAULT_SUBTREE_MAX_HEIGHT = 8. Maybe we could split it exactly into 2
             bin_idx = split_keys_index(
-                keys, height // 8, V + (2 << (self.subtree_height - h))
+                keys, height // self.subtree_height, V + (2 ** (self.subtree_height - h))
             )
             
-            print(f"BIN IDX: {bin_idx}")
-            print([k[height // 8] for k in keys])
             bin_keys, keys = keys[:bin_idx], keys[bin_idx:]
             bin_values, values = values[:bin_idx], values[bin_idx:]
-            print([k[height // 8] for k in keys])
 
-            _nodes, _heights = await self._update_node(
-                bin_keys, bin_values, current_node, height + h
-            )
+            if isinstance(current_node, SubTreeBranchNode):
+                # SubTreeBranchNode  can only be stored at bottom of subtree
+                btm_subtree = await self.get_subtree(current_node.hash)
+                await self._db.delete(btm_subtree.hash)
+                self.stats["db_delete"] += 1
+               
+                new_subtree = await self._update_subtree(bin_keys, bin_values, btm_subtree, height + h)
+                _nodes, _heights = [SubTreeBranchNode(new_subtree.hash), [h]]
+
+            else:
+                _nodes, _heights = await self._update_node(
+                    bin_keys, bin_values, current_node, height + h
+                )
             new_nodes += _nodes
             new_structure += _heights
-            V += (2 << (self.subtree_height - h))
+            V += (2 ** (self.subtree_height - h))
 
-        new_structure = [h% self.subtree_height for h in new_structure]
-        assert V == (2 << self.subtree_height)
+        for i in range(len(new_structure)):
+            if new_structure[i] > self.subtree_height:
+                new_structure[i] = new_structure[i]%self.subtree_height
+        assert V == (2 ** self.subtree_height)
         # print(f"nodes : {new_nodes} {new_structure}")
         # assert len(new_structure) == len(new_nodes)
-        # assert len(new_structure) <= 2<<self.subtree_height
+        # assert len(new_structure) <= 2**self.subtree_height
         new_subtree = SubTree(new_structure, new_nodes)
         # print(f"\nnew_subtree {height} : {new_subtree.hash.hex()}")
         await self.set_subtree(new_subtree)
@@ -206,35 +208,37 @@ class SkipMerkleTree(object):
             new_leaf = LeafNode(keys[0], values[0])
             self.stats["leaf_created"] += 1
             return ([new_leaf], [height])
-
+        
         #If we are at the bottom of the tree, we call update_subtree and return update nodes
-        if (height % self.subtree_height) == self.subtree_height - 1:
+        # to check for this it is a bit tricky. I really hope this makes sense
+
+        if (height % self.subtree_height) == self.subtree_height - 1:   
             if isinstance(current_node, EmptyNode):
                 left_subtree = await self.get_subtree(EmptyNode.hash)
                 right_subtree = await self.get_subtree(EmptyNode.hash)
+
             elif isinstance(current_node, LeafNode):
                 if is_bit_set(current_node.key, height):
                     left_subtree = SubTree([0], [EmptyNode()])
                     right_subtree = SubTree([0], [current_node])
-                    await self.set_subtree(right_subtree)
                 else:
                     left_subtree = SubTree([0], [current_node])
-                    await self.set_subtree(left_subtree)
                     right_subtree = SubTree([0], [EmptyNode()])
-            elif isinstance(current_node, BranchNode):
-                # Branch node can only be stored at bottom of subtree
-                left_subtree = await self.get_subtree(current_node.left_hash)
-                right_subtree = await self.get_subtree(current_node.right_hash)
+            else:
+                print(type(current_node))
+                raise InvalidDataError
 
             idx = split_index(keys, lambda k: is_bit_set(k, height))
 
             left_subtree = await self._update_subtree(
-                keys[:idx], values[:idx], left_subtree, height + 1
+                keys[:idx], values[:idx], left_subtree, height + 1,
             )
             right_subtree = await self._update_subtree(
-                keys[idx:], values[idx:], right_subtree, height + 1
+                keys[idx:], values[idx:], right_subtree, height + 1,
             )
-            current_node = BranchNode(left_subtree.hash, right_subtree.hash)
+
+            _hash = BranchNode._hash(left_subtree.hash + right_subtree.hash)
+            current_node = SubTreeBranchNode(_hash)
 
             return ([current_node], [self.subtree_height - 1])
 
@@ -262,7 +266,5 @@ class SkipMerkleTree(object):
         right_nodes, right_heights = await self._update_node(
             keys[idx:], values[idx:], right_node, height + 1
         )
-
-
 
         return (left_nodes + right_nodes, left_heights + right_heights)

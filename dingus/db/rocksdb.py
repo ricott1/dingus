@@ -1,11 +1,10 @@
-# import rocksdb
-# import os
-# from pathlib import Path
+import rocksdb
+import os
+from pathlib import Path
 
 
 class RocksDB(object):
     def __init__(self, filename: str = "") -> None:
-        return
         opts = rocksdb.Options()
         opts.create_if_missing = True
         opts.max_open_files = 300000
