@@ -8,6 +8,7 @@ class ComponentMixin(object):
     def __init__(self, *args, priority=0, **kwargs) -> None:
         self.events = []
         self.priority = priority
+        self.quitting = False
         super().__init__(*args, **kwargs)
 
     @property
@@ -20,7 +21,7 @@ class ComponentMixin(object):
     async def stop(self) -> None:
         raise NotImplementedError
 
-    async def handle_event(self, event: dict) -> None:
+    async def handle_events(self, events: list[dict]) -> None:
         pass
 
     def handle_exception(self, exception: Exception) -> None:

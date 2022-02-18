@@ -27,7 +27,7 @@ async def case_testing_batch(
     _smt = SparseMerkleTree(KEY_LENGTH)
     assert _smt.root.hash == EMPTY_HASH
     start_time = time.time()
-    new_root = await _smt.update_batch(initial_case)
+    new_root = await _smt.update(initial_case)
     assert _smt.root.hash == new_root.hash
     with capsys.disabled():
         print(
@@ -35,7 +35,7 @@ async def case_testing_batch(
         )
 
     start_time = time.time()
-    extra_new_root = await _smt.update_batch(extra_case)
+    extra_new_root = await _smt.update(extra_case)
     assert _smt.root.hash == extra_new_root.hash
     with capsys.disabled():
         print(

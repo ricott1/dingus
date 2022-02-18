@@ -25,37 +25,39 @@ class DingusClient(component.ComponentMixin):
         if "data" in prices:
             self.emit_event("market_prices_update", prices["data"], ["api_response"])
 
-    async def handle_event(self, event: dict) -> None:
-        if event.name == "request_block":
-            block = api.fetch_block(event.data["key"], event.data["value"])
-            if "response_name" in event.data:
-                name: str = event.data["response_name"]
-            else:
-                name = "response_block"
+    async def handle_events(self, events: list[dict]) -> None:
+        for event in events:
+            logging.info(f"Handling event {event}")
+            if event.name == "request_block":
+                block = api.fetch_block(event.data["key"], event.data["value"])
+                if "response_name" in event.data:
+                    name: str = event.data["response_name"]
+                else:
+                    name = "response_block"
 
-            if "data" in block:
-                self.emit_event(name, block["data"][0], ["api_response"])
+                if "data" in block:
+                    self.emit_event(name, block["data"][0], ["api_response"])
 
-        elif event.name == "request_account":
-            account = api.fetch_account(event.data["key"], event.data["value"])
-            if "response_name" in event.data:
-                name = event.data["response_name"]
-            else:
-                name = "response_account"
+            elif event.name == "request_account":
+                account = api.fetch_account(event.data["key"], event.data["value"])
+                if "response_name" in event.data:
+                    name = event.data["response_name"]
+                else:
+                    name = "response_account"
 
-            if "data" in account:
-                self.emit_event(name, account["data"][0], ["api_response"])
-            else:
-                default = {
-                    "address": "",
-                    "balance": "0",
-                    "username": "",
-                    "publicKey": "",
-                    "isDelegate": "false",
-                    "isMultisignature": "false",
-                }
-                default[event.data["key"]] = event.data["value"]
-                self.emit_event(name, {"summary": default}, ["api_response"])
+                if "data" in account:
+                    self.emit_event(name, account["data"][0], ["api_response"])
+                else:
+                    default = {
+                        "address": "",
+                        "balance": "0",
+                        "username": "",
+                        "publicKey": "",
+                        "isDelegate": "false",
+                        "isMultisignature": "false",
+                    }
+                    default[event.data["key"]] = event.data["value"]
+                    self.emit_event(name, {"summary": default}, ["api_response"])
 
     def log_event(self, name: str, response: dict) -> None:
         if "data" in response:

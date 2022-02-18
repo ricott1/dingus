@@ -35,16 +35,16 @@ async def case_testing_batch(cases) -> Coroutine[None, None, SparseMerkleTree]:
     _smt = SparseMerkleTree(KEY_LENGTH)
     assert _smt.root.hash == EMPTY_HASH
 
-    new_root = await _smt.update_batch(cases[:500], strict=True)
+    new_root = await _smt.update(cases[:500], strict=True)
     assert _smt.root.hash == new_root.hash
 
-    new_root = await _smt.update_batch(cases[500:1500], strict=True)
+    new_root = await _smt.update(cases[500:1500], strict=True)
     assert _smt.root.hash == new_root.hash
 
-    new_root = await _smt.update_batch(cases[1500:7000], strict=True)
+    new_root = await _smt.update(cases[1500:7000], strict=True)
     assert _smt.root.hash == new_root.hash
 
-    new_root = await _smt.update_batch(cases[7000:], strict=True)
+    new_root = await _smt.update(cases[7000:], strict=True)
     assert _smt.root.hash == new_root.hash
 
     return _smt

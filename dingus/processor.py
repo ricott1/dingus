@@ -32,18 +32,14 @@ class Processor(object):
                 )
                 events = []
                 for comp in self.components:
-                    events += comp.events
-                    comp.clear_events()
-                for event in events:
-                    if event.name == "quit_input":
+                    if comp.quitting:
                         exit_flag = True
                         break
-                    for comp in self.components:
-                        await comp.handle_event(event)
-                    # [asyncio.create_task(comp.handle_event(event)) for comp in self.components]
-                    await asyncio.wait(
-                        [comp.handle_event(event) for comp in self.components]
-                    )
+                    events += comp.events
+                    comp.clear_events()
+                await asyncio.wait(
+                    [comp.handle_events(events) for comp in self.components]
+                )
                 await asyncio.sleep(deltatime)
         finally:
             await self.stop()

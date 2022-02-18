@@ -147,17 +147,18 @@ class TUI(component.ComponentMixin, urwid.Pile):
         except AttributeError:
             pass
 
-    async def handle_event(self, event: dict) -> None:
-        for name in self.bodies:
-            if hasattr(self.bodies[name], "handle_event"):
-                await self.bodies[name].handle_event(event)
-
-        await self.tip_header.handle_event(event)
-        await self.account_header.handle_event(event)
+    async def handle_events(self, events: list[dict]) -> None:
+        for event in events:
+            if event.name == "network_status_update":
+                await self.tip_header.handle_event(event)
+            elif event.name == "response_block" or event.name == "response_account_explorer":
+                await self.bodies["explorer"].handle_event(event)
+            else:
+                await self.account_header.handle_event(event)
 
     def handle_input(self, _input: str) -> None:
         if _input == "esc":
-            self.emit_event("quit_input", {}, ["user_input"])
+            self.quitting = True
             self.update_active_body("quitting")
         elif hasattr(self.active_body, "handle_input"):
             self.active_body.handle_input(_input)
@@ -235,8 +236,7 @@ class CurrentTipLineBox(urwid.LineBox):
             self.initialized = True
 
     async def handle_event(self, event: Event) -> None:
-        if event.name == "network_status_update":
-            self.update(event.data)
+        self.update(event.data)
 
 
 class SearchBarEdit(urwid.Frame):
@@ -787,10 +787,10 @@ class AccountInfo(urwid.Pile):
             self.selecting_account = True
             self.parent.update_active_body("selection")
 
-    async def handle_event(self, event: Event) -> None:
+    async def handle_event(self, event: dict) -> None:
         if event.name == "response_account" and self.active_account:
             self.update(self.active_account)
-        if event.name == "network_status_update":
+        elif event.name == "network_status_update":
             data = {
                 "key": "address",
                 "value": self.active_address,

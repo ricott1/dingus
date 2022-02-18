@@ -38,8 +38,8 @@ def test_nodes():
     assert structure == [1, 1]
     assert len(structure) == len(nodes) == 2
     assert SubTree.structure_to_bins(structure) == [
-        (0, 2 ** (DEFAULT_SUBTREE_MAX_HEIGHT - 1)),
-        (2 ** (DEFAULT_SUBTREE_MAX_HEIGHT - 1), 2**DEFAULT_SUBTREE_MAX_HEIGHT),
+        (0, 1 <<(DEFAULT_SUBTREE_MAX_HEIGHT - 1)),
+        (1 <<(DEFAULT_SUBTREE_MAX_HEIGHT - 1), 2**DEFAULT_SUBTREE_MAX_HEIGHT),
     ]
     st = SubTree(structure, nodes)
     assert st.hash
@@ -52,8 +52,8 @@ def test_nodes():
     assert structure == [1, 1]
     assert len(structure) == len(nodes) == 2
     assert SubTree.structure_to_bins(structure) == [
-        (0, 2 ** (DEFAULT_SUBTREE_MAX_HEIGHT - 1)),
-        (2 ** (DEFAULT_SUBTREE_MAX_HEIGHT - 1), 2**DEFAULT_SUBTREE_MAX_HEIGHT),
+        (0, 1 <<(DEFAULT_SUBTREE_MAX_HEIGHT - 1)),
+        (1 <<(DEFAULT_SUBTREE_MAX_HEIGHT - 1), 2**DEFAULT_SUBTREE_MAX_HEIGHT),
     ]
     st = SubTree(structure, nodes)
     assert st.hash
@@ -66,8 +66,8 @@ def test_nodes():
     assert structure == [1, 1]
     assert len(structure) == len(nodes) == 2
     assert SubTree.structure_to_bins(structure) == [
-        (0, 2 ** (DEFAULT_SUBTREE_MAX_HEIGHT - 1)),
-        (2 ** (DEFAULT_SUBTREE_MAX_HEIGHT - 1), 2**DEFAULT_SUBTREE_MAX_HEIGHT),
+        (0, 1 <<(DEFAULT_SUBTREE_MAX_HEIGHT - 1)),
+        (1 <<(DEFAULT_SUBTREE_MAX_HEIGHT - 1), 2**DEFAULT_SUBTREE_MAX_HEIGHT),
     ]
     st = SubTree(structure, nodes)
     assert st.hash
@@ -93,13 +93,13 @@ def test_nodes():
     assert structure == [1, 2, 2]
     assert len(structure) == len(nodes) == 3
     assert SubTree.structure_to_bins(structure) == [
-        (0, 2 ** (DEFAULT_SUBTREE_MAX_HEIGHT - 1)),
+        (0, 1 <<(DEFAULT_SUBTREE_MAX_HEIGHT - 1)),
         (
-            2 ** (DEFAULT_SUBTREE_MAX_HEIGHT - 1),
-            (2 ** (DEFAULT_SUBTREE_MAX_HEIGHT - 1)) + (2 ** (DEFAULT_SUBTREE_MAX_HEIGHT - 2)),
+            1 <<(DEFAULT_SUBTREE_MAX_HEIGHT - 1),
+            (1 <<(DEFAULT_SUBTREE_MAX_HEIGHT - 1)) + (1 <<(DEFAULT_SUBTREE_MAX_HEIGHT - 2)),
         ),
         (
-            (2 ** (DEFAULT_SUBTREE_MAX_HEIGHT - 1)) + (2 ** (DEFAULT_SUBTREE_MAX_HEIGHT - 2)),
+            (1 <<(DEFAULT_SUBTREE_MAX_HEIGHT - 1)) + (1 <<(DEFAULT_SUBTREE_MAX_HEIGHT - 2)),
             2**DEFAULT_SUBTREE_MAX_HEIGHT,
         ),
     ]

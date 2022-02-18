@@ -9,75 +9,52 @@ def get_cases() -> list[dict]:
     with open("tests/tree/fixtures/smt.json", "r") as f:
         test_cases = json.load(f)["testCases"]
     for case in test_cases:
+        data = zip([bytes.fromhex(i) for i in case["input"]["keys"]], [bytes.fromhex(i) for i in case["input"]["values"]])
+        sorted_data = sorted(data, key=lambda d: d[0])
+        keys = []
+        values = []
+        for key, value in sorted_data:
+            keys.append(key)
+            values.append(value)
         _cases.append({
-            "keys": [bytes.fromhex(i) for i in case["input"]["keys"]],
-            "values": [bytes.fromhex(i) for i in case["input"]["values"]],
+            "keys": keys,
+            "values": values,
             "root": bytes.fromhex(case["output"]["merkleRoot"])
         })
+
     return _cases
 
-test_cases = get_cases()[-1:]
-
-def test_update_fixtures():
-    for case in test_cases:
-        asyncio.run(update_test(case))
-
-
-async def update_test(case):
-    _smt = smt.SparseMerkleTree(db="rocksdb")
-    keys = case["keys"]
-    values = case["values"]
-    root = case["root"]
-    if keys:
-        assert _smt.key_length == len(keys[0])
-    assert _smt.root.hash == EMPTY_HASH
-
-    for k, v in zip(keys, values):
-        new_root = await _smt.update(k, v)
-        assert _smt.root.hash == new_root.hash
-
-    assert _smt.root.hash == root
-
+test_cases = get_cases()
 
 def test_batch_update_fixtures(capsys):
     for case in test_cases:
         asyncio.run(batch_test(case, capsys))
-
 
 async def batch_test(case, capsys):
     keys = case["keys"]
     values = case["values"]
     root = case["root"]
 
-    _smt = smt.SparseMerkleTree(db="rocksdb")
+    _smt = smt.SparseMerkleTree()
 
     assert _smt.root.hash == EMPTY_HASH
-    data = list(zip(keys, values))
-    new_root = await _smt.update_batch(data, strict=True)
+    new_root = await _smt.update(keys, values)
     
     assert _smt.root.hash == root == new_root.hash
-    with capsys.disabled():
-        print("\n BATCH TREE")
-        print(_smt.stats)
-    
 
 def test_skip_merkle_tree_fixtures(capsys):
     for case in test_cases:
         asyncio.run(skip_test(case, capsys))
-
 
 async def skip_test(case, capsys):
     keys = case["keys"]
     values = case["values"]
     root = case["root"]
 
-    _skmt = skmt.SkipMerkleTree(db="rocksdb")
+    _skmt = skmt.SkipMerkleTree()
 
     assert _skmt.root.hash == EMPTY_HASH
-    data = list(zip(keys, values))
-    new_root = await _skmt.update(data, strict=True)
-    with capsys.disabled():
-        print("\n SKIP TREE")
-        print(_skmt.stats)
+    print("CASE:", len(keys))
+    new_root = await _skmt.update(keys, values)
 
     assert _skmt.root.hash == root == new_root.hash

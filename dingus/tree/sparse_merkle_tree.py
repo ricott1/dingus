@@ -89,128 +89,109 @@ class SparseMerkleTree(object):
     async def write_to_db(self) -> None:
         await self._db.write()
 
+    # async def update(
+    #     self, key: bytes, value: bytes, starting_height: int = 0
+    # ) -> Coroutine[Any, Any, TreeNode]:
+    #     """
+    #     As specified in from https:#github.com/LiskHQ/lips/blob/master/proposals/lip-0039.md
+    #     """
+
+    #     if len(value) == 0:
+    #         raise EmptyValueError
+
+    #     if len(key) != self.key_length:
+    #         raise InvalidKeyError
+
+    #     self.root = await self._update(key, value, self.root, starting_height)
+    #     await self.write_to_db()
+    #     return self.root
+
+    # async def _update(
+    #     self, key: bytes, value: bytes, current_node: TreeNode, height: int
+    # ) -> Coroutine[Any, Any, TreeNode]:
+    #     self.stats["update_calls"] += 1
+    #     new_leaf = LeafNode(key, value)
+    #     self.stats["leaf_created"] += 1
+    #     await self.set_node(new_leaf)
+
+    #     # if the current_node is EMPTY node then assign it to leaf node and return
+    #     if isinstance(current_node, EmptyNode):
+    #         return new_leaf
+
+    #     h = height
+    #     ancestor_nodes: list[BranchNode] = []
+    #     while isinstance(current_node, BranchNode):
+    #         ancestor_nodes.append(current_node)
+    #         if is_bit_set(key, h):
+    #             current_node = await self.get_node(current_node.right_hash)
+    #         else:
+    #             current_node = await self.get_node(current_node.left_hash)
+    #         h += 1
+
+    #     # The current_node is an empty node, new_leaf will replace the default empty node or current_node will be updated to new_leaf
+    #     if isinstance(current_node, EmptyNode):
+    #         # delete the empty node and update the tree, the new leaf will substitute the empty node
+    #         bottom_node = new_leaf
+    #     elif current_node.key == key:
+    #         bottom_node = new_leaf
+    #     else:
+    #         # We need to create BranchNodees in the tree to fulfill the
+    #         # Condition of one leaf per empty subtree
+    #         # Note: h is set to the last value from the previous loop
+
+    #         while is_bit_set(key, h) == is_bit_set(current_node.key, h):
+    #             # Create branch node with empty value
+    #             new_branch = BranchNode(EmptyNode.hash, EmptyNode.hash)
+    #             self.stats["branch_created"] += 1
+    #             # Append defaultBranch to ancestor_nodes
+    #             ancestor_nodes.append(new_branch)
+    #             h += 1
+    #         # Create last branch node, parent of node and new_leaf
+
+    #         if is_bit_set(key, h):
+    #             bottom_node = BranchNode(current_node.hash, new_leaf.hash)
+    #         else:
+    #             bottom_node = BranchNode(new_leaf.hash, current_node.hash)
+    #         self.stats["branch_created"] += 1
+    #         await self.set_node(bottom_node)
+
+    #     # Finally update all branch nodes in ancestor_nodes
+    #     # Starting from the last
+    #     assert len(ancestor_nodes) == h - height
+    #     while h > height:
+    #         p = ancestor_nodes.pop()
+    #         await self._db.delete(p.hash)
+    #         self.stats["db_delete"] += 1
+    #         h -= 1
+    #         if is_bit_set(key, h):
+    #             p.right_hash = bottom_node.hash
+    #         else:
+    #             p.left_hash = bottom_node.hash
+
+    #         await self.set_node(p)
+    #         bottom_node = p
+
+    #     return bottom_node
+
     async def update(
-        self, key: bytes, value: bytes, starting_height: int = 0
-    ) -> Coroutine[Any, Any, TreeNode]:
-        """
-        As specified in from https:#github.com/LiskHQ/lips/blob/master/proposals/lip-0039.md
-        """
-
-        if len(value) == 0:
-            raise EmptyValueError
-
-        if len(key) != self.key_length:
-            raise InvalidKeyError
-
-        self.root = await self._update(key, value, self.root, starting_height)
-        await self.write_to_db()
-        return self.root
-
-    async def _update(
-        self, key: bytes, value: bytes, current_node: TreeNode, height: int
-    ) -> Coroutine[Any, Any, TreeNode]:
-        self.stats["update_calls"] += 1
-        new_leaf = LeafNode(key, value)
-        self.stats["leaf_created"] += 1
-        await self.set_node(new_leaf)
-
-        # if the current_node is EMPTY node then assign it to leaf node and return
-        if isinstance(current_node, EmptyNode):
-            return new_leaf
-
-        h = height
-        ancestor_nodes: list[BranchNode] = []
-        while isinstance(current_node, BranchNode):
-            ancestor_nodes.append(current_node)
-            if is_bit_set(key, h):
-                current_node = await self.get_node(current_node.right_hash)
-            else:
-                current_node = await self.get_node(current_node.left_hash)
-            h += 1
-
-        # The current_node is an empty node, new_leaf will replace the default empty node or current_node will be updated to new_leaf
-        if isinstance(current_node, EmptyNode):
-            # delete the empty node and update the tree, the new leaf will substitute the empty node
-            bottom_node = new_leaf
-        elif current_node.key == key:
-            bottom_node = new_leaf
-        else:
-            # We need to create BranchNodees in the tree to fulfill the
-            # Condition of one leaf per empty subtree
-            # Note: h is set to the last value from the previous loop
-
-            while is_bit_set(key, h) == is_bit_set(current_node.key, h):
-                # Create branch node with empty value
-                new_branch = BranchNode(EmptyNode.hash, EmptyNode.hash)
-                self.stats["branch_created"] += 1
-                # Append defaultBranch to ancestor_nodes
-                ancestor_nodes.append(new_branch)
-                h += 1
-            # Create last branch node, parent of node and new_leaf
-
-            if is_bit_set(key, h):
-                bottom_node = BranchNode(current_node.hash, new_leaf.hash)
-            else:
-                bottom_node = BranchNode(new_leaf.hash, current_node.hash)
-            self.stats["branch_created"] += 1
-            await self.set_node(bottom_node)
-
-        # Finally update all branch nodes in ancestor_nodes
-        # Starting from the last
-        assert len(ancestor_nodes) == h - height
-        while h > height:
-            p = ancestor_nodes.pop()
-            await self._db.delete(p.hash)
-            self.stats["db_delete"] += 1
-            h -= 1
-            if is_bit_set(key, h):
-                p.right_hash = bottom_node.hash
-            else:
-                p.left_hash = bottom_node.hash
-
-            await self.set_node(p)
-            bottom_node = p
-
-        return bottom_node
-
-    async def update_batch(
         self,
-        data: list[tuple[bytes, bytes]],
-        strict: bool = False,
+        keys: list[bytes],
+        values: list[bytes],
         starting_height: int = 0,
     ) -> Coroutine[Any, Any, TreeNode]:
         """
         As specified in from https:#github.com/LiskHQ/lips/blob/master/proposals/lip-0039.md
         """
-        if len(data) == 0:
+        if len(keys) == 0:
             return self.root
-        if len(data) == 1:
-            return await self.update(*data[0])
+        # if len(keys) == 1:
+        #     return await self.update(keys[0], values[0])
 
-        if strict:
-            keys_set = {}
-            for key, value in data:
-                if len(value) == 0:
-                    raise EmptyValueError
-
-                if len(key) != self.key_length:
-                    raise InvalidKeyError
-
-                if key in keys_set:
-                    raise InvalidKeyError
-                keys_set[key] = True
-
-        sorted_data = sorted(data, key=lambda d: d[0])
-        keys = []
-        values = []
-        for key, value in sorted_data:
-            keys.append(key)
-            values.append(value)
-        self.root = await self._update_batch(keys, values, self.root, starting_height)
+        self.root = await self._update(keys, values, self.root, starting_height)
         await self.write_to_db()
         return self.root
 
-    async def _update_batch(
+    async def _update(
         self,
         keys: list[bytes],
         values: list[bytes],
@@ -224,19 +205,21 @@ class SparseMerkleTree(object):
         if len(keys) == 0:
             return current_node
 
-        # if len(keys) == 1:
-        #     return await self._update(keys[0], values[0], current_node, height)
-
-        # if len(keys) == 1 and isinstance(current_node, EmptyNode):
-        #     new_leaf = LeafNode(keys[0], values[0])
-        #     await self.set_node(new_leaf)
-        #     return new_leaf
-        if isinstance(current_node, EmptyNode):
-            if len(keys) == 1:
+        if len(keys) == 1:
+            if isinstance(current_node, EmptyNode):
                 new_leaf = LeafNode(keys[0], values[0])
                 self.stats["leaf_created"] += 1
                 await self.set_node(new_leaf)
                 return new_leaf
+            elif isinstance(current_node, LeafNode) and current_node.key == keys[0]:
+                await self._db.delete(current_node.hash)
+                self.stats["db_delete"] += 1
+                new_leaf = LeafNode(keys[0], values[0])
+                self.stats["leaf_created"] += 1
+                await self.set_node(new_leaf)
+                return new_leaf
+
+        if isinstance(current_node, EmptyNode):
             left_node = EmptyNode()
             right_node = EmptyNode()
         elif isinstance(current_node, LeafNode):
@@ -257,14 +240,14 @@ class SparseMerkleTree(object):
         # concurrent_update = (height < 8) and (0 < idx < len(keys))
         # if concurrent_update:
         #     left_node, right_node = await asyncio.gather(
-        #         self._update_batch(keys[:idx], values[:idx], left_node, height + 1),
-        #         self._update_batch(keys[idx:], values[idx:], right_node, height + 1),
+        #         self._update(keys[:idx], values[:idx], left_node, height + 1),
+        #         self._update(keys[idx:], values[idx:], right_node, height + 1),
         #     )
         # else:
-        left_node = await self._update_batch(
+        left_node = await self._update(
             keys[:idx], values[:idx], left_node, height + 1
         )
-        right_node = await self._update_batch(
+        right_node = await self._update(
             keys[idx:], values[idx:], right_node, height + 1
         )
 

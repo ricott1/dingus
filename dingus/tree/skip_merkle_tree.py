@@ -2,9 +2,9 @@ from .constants import (
     DEFAULT_KEY_LENGTH,
     DEFAULT_SUBTREE_MAX_HEIGHT,
 )
-from .types import LeafNode, BranchNode, SubTree, EmptyNode, TreeNode, SubTreeBranchNode
+from .types import LeafNode, SubTree, EmptyNode, TreeNode, SubTreeBranchNode
 from .errors import *
-from .utils import split_index, is_bit_set, split_keys_index
+from .utils import is_bit_set
 from typing import Coroutine, Any
 
 
@@ -20,6 +20,7 @@ class SkipMerkleTree(object):
     ) -> None:
         self.key_length = key_length
         self.subtree_height = subtree_height
+        self.max_number_of_nodes = 1 << self.subtree_height
         
         self.root = SubTree([0], [EmptyNode()])
         if db == "inmemorydb":
@@ -44,7 +45,7 @@ class SkipMerkleTree(object):
         body = []
         for i in reversed(range(len(subtree.nodes))):
             h, node = subtree.structure[i], subtree.nodes[i]
-            if i < len(subtree.nodes) - 1:
+            if i > 0:
                 connector = "├"
             else:
                 connector = "╰"
@@ -60,17 +61,17 @@ class SkipMerkleTree(object):
                 )
                 
                 body.append(preamble + connector + "──" * h + f"─<🌿{h}:{bin_key}:{node.hash.hex()[:hash_length]}")
-            elif isinstance(node, BranchNode):
-
-                right_node = await self.get_subtree(node.right_hash)
-                left_node = await self.get_subtree(node.left_hash)
-                left = await self.print(left_node, preamble + "    ")
-                right = await self.print(right_node, preamble + f"{BROWN('│')}   ")
+            elif isinstance(node, SubTreeBranchNode):
+                current_subtree = await self.get_subtree(node.hash)
+                # right_node = await self.get_subtree(node.right_hash)
+                # left_node = await self.get_subtree(node.left_hash)
+                # left = await self.print(left_node, preamble + "    ")
+                # right = await self.print(right_node, preamble + f"{BROWN('│')}   ")
+                ctp = await self.print(current_subtree, preamble + "    ")
                 _body = "\n".join(
                     [
                         f"{BROWN('─<B')}:{node.hash.hex()[:hash_length]}",
-                        f"{preamble}{BROWN('├')}{right}",
-                        f"{preamble}{BROWN('╰')}{left}",
+                        f"{preamble}{BROWN('├')}{ctp}",
                     ])
                     
                 body.append(preamble + connector + "──" * h + _body)
@@ -83,8 +84,6 @@ class SkipMerkleTree(object):
         data = await self._db.get(node_hash)
         self.stats["db_get"] += 1
         if not data:
-            print("\nMISSING NODE")
-            print(node_hash.hex())
             raise MissingNodeError
 
         structure, nodes = SubTree.parse(data, self.key_length)
@@ -100,34 +99,15 @@ class SkipMerkleTree(object):
 
     async def update(
         self,
-        data: list[tuple[bytes, bytes]],
-        strict: bool = False,
+        keys: list[bytes],
+        values: list[bytes],
     ) -> Coroutine[Any, Any, SubTree]:
         """
         As specified in from https:#github.com/LiskHQ/lips/blob/master/proposals/lip-0039.md
         """
-        if len(data) == 0:
+
+        if len(keys) == 0:
             return self.root
-
-        if strict:
-            keys_set = {}
-            for key, value in data:
-                if len(value) == 0:
-                    raise EmptyValueError
-
-                if len(key) != self.key_length:
-                    raise InvalidKeyError
-
-                if key in keys_set:
-                    raise InvalidKeyError
-                keys_set[key] = True
-
-        sorted_data = sorted(data, key=lambda d: d[0])
-        keys = []
-        values = []
-        for key, value in sorted_data:
-            keys.append(key)
-            values.append(value)
 
         self.root = await self._update_subtree(keys, values, self.root, 0)
         await self.write_to_db()
@@ -142,10 +122,27 @@ class SkipMerkleTree(object):
     ) -> Coroutine[Any, Any, SubTree]:
 
         self.stats["update_subtree_calls"] += 1
-        assert len(keys) == len(values)
+        # assert len(keys) == len(values)
         assert (height%self.subtree_height) == 0
         if len(keys) == 0:
             return current_subtree
+
+        bin_keys = [[] for _ in range(self.max_number_of_nodes)]
+        bin_values = [[] for _ in range(self.max_number_of_nodes)]
+        b = height // 8
+        # FIXME: now that we cut subtree height into 2 need to map to 128 bins
+        for i in range(len(keys)):
+            k, v = keys[i], values[i]
+
+            if height%8 == 0: #upper half
+                bin_idx = k[b] >> 4
+            elif height%8 == 4: #lower half
+                bin_idx = k[b] & 15
+            else:
+                raise InvalidKeyError
+
+            bin_keys[bin_idx].append(k)
+            bin_values[bin_idx].append(v)
 
         new_nodes = []
         new_structure = []
@@ -153,118 +150,89 @@ class SkipMerkleTree(object):
         for i in range(len(current_subtree.nodes)):
             h = current_subtree.structure[i]
             current_node = current_subtree.nodes[i]
+            incr = 1 << (self.subtree_height - h) 
 
-            # The following only works for the default value DEFAULT_SUBTREE_MAX_HEIGHT = 8. Maybe we could split it exactly into 2
-            bin_idx = split_keys_index(
-                keys, height // self.subtree_height, V + (2 ** (self.subtree_height - h))
+            _nodes, _heights = await self._update_node(
+                bin_keys[V: V + incr], bin_values[V: V + incr], current_node, height, h
             )
-            
-            bin_keys, keys = keys[:bin_idx], keys[bin_idx:]
-            bin_values, values = values[:bin_idx], values[bin_idx:]
-
-            if isinstance(current_node, SubTreeBranchNode):
-                # SubTreeBranchNode  can only be stored at bottom of subtree
-                btm_subtree = await self.get_subtree(current_node.hash)
-                await self._db.delete(btm_subtree.hash)
-                self.stats["db_delete"] += 1
-               
-                new_subtree = await self._update_subtree(bin_keys, bin_values, btm_subtree, height + h)
-                _nodes, _heights = [SubTreeBranchNode(new_subtree.hash), [h]]
-
-            else:
-                _nodes, _heights = await self._update_node(
-                    bin_keys, bin_values, current_node, height + h
-                )
             new_nodes += _nodes
             new_structure += _heights
-            V += (2 ** (self.subtree_height - h))
+            V += incr
 
-        for i in range(len(new_structure)):
-            if new_structure[i] > self.subtree_height:
-                new_structure[i] = new_structure[i]%self.subtree_height
-        assert V == (2 ** self.subtree_height)
+        assert V == self.max_number_of_nodes
         # print(f"nodes : {new_nodes} {new_structure}")
         # assert len(new_structure) == len(new_nodes)
         # assert len(new_structure) <= 2**self.subtree_height
         new_subtree = SubTree(new_structure, new_nodes)
-        # print(f"\nnew_subtree {height} : {new_subtree.hash.hex()}")
         await self.set_subtree(new_subtree)
         return new_subtree
 
     async def _update_node(
         self,
-        keys: list[bytes],
-        values: list[bytes],
+        keys: list[list[bytes]],
+        values: list[list[bytes]],
         current_node: TreeNode,
         height: int,
+        h: int,
     ) -> Coroutine[Any, Any, tuple[list[TreeNode], list[int]]]:
-        assert height < 8 * self.key_length
+        assert height + h< 8 * self.key_length
         assert len(keys) == len(values)
         self.stats["update_node_calls"] += 1
-        if len(keys) == 0:
-            return ([current_node], [height])
+
+        total_data = sum([len(k) for k in keys])
+        if total_data == 0:
+            return ([current_node], [h])
         
-        if isinstance(current_node, EmptyNode) and len(keys) == 1:
-            new_leaf = LeafNode(keys[0], values[0])
-            self.stats["leaf_created"] += 1
-            return ([new_leaf], [height])
+        if isinstance(current_node, EmptyNode) and total_data == 1:
+            for i in range(len(keys)):
+                if len(keys[i]) == 1:  
+                    new_leaf = LeafNode(keys[i][0], values[i][0])
+                    self.stats["leaf_created"] += 1
+                    return ([new_leaf], [h])
         
         #If we are at the bottom of the tree, we call update_subtree and return update nodes
-        # to check for this it is a bit tricky. I really hope this makes sense
-
-        if (height % self.subtree_height) == self.subtree_height - 1:   
-            if isinstance(current_node, EmptyNode):
-                left_subtree = await self.get_subtree(EmptyNode.hash)
-                right_subtree = await self.get_subtree(EmptyNode.hash)
+        if h == self.subtree_height:
+            
+            if isinstance(current_node, SubTreeBranchNode):
+                # SubTreeBranchNode  can only be stored at bottom of subtree
+                btm_subtree = await self.get_subtree(current_node.hash)
+                await self._db.delete(current_node.hash)
+                self.stats["db_delete"] += 1
+               
+            elif isinstance(current_node, EmptyNode):
+                btm_subtree = await self.get_subtree(EmptyNode.hash)
 
             elif isinstance(current_node, LeafNode):
-                if is_bit_set(current_node.key, height):
-                    left_subtree = SubTree([0], [EmptyNode()])
-                    right_subtree = SubTree([0], [current_node])
-                else:
-                    left_subtree = SubTree([0], [current_node])
-                    right_subtree = SubTree([0], [EmptyNode()])
+                btm_subtree = SubTree([0], [current_node])
+                
             else:
-                print(type(current_node))
                 raise InvalidDataError
 
-            idx = split_index(keys, lambda k: is_bit_set(k, height))
-
-            left_subtree = await self._update_subtree(
-                keys[:idx], values[:idx], left_subtree, height + 1,
-            )
-            right_subtree = await self._update_subtree(
-                keys[idx:], values[idx:], right_subtree, height + 1,
-            )
-
-            _hash = BranchNode._hash(left_subtree.hash + right_subtree.hash)
-            current_node = SubTreeBranchNode(_hash)
-
-            return ([current_node], [self.subtree_height - 1])
-
+            assert len(keys) == len(values) == 1
+            new_subtree = await self._update_subtree(keys[0], values[0], btm_subtree, height + h)
+            return ([SubTreeBranchNode(new_subtree.hash)], [h])
         
         #Else, we just call _update_node and return the returned values
         if isinstance(current_node, EmptyNode):
             left_node = EmptyNode()
             right_node = EmptyNode()
         elif isinstance(current_node, LeafNode):
-            print("UPDATING LEAF", current_node.hash.hex()[:4], height, is_bit_set(current_node.key, height))
-            if is_bit_set(current_node.key, height):
+            if is_bit_set(current_node.key, height + h):
                 left_node = EmptyNode()
                 right_node = current_node
             else:
                 left_node = current_node
                 right_node = EmptyNode()
-        elif isinstance(current_node, BranchNode):
-            assert 1==2
+        else:
+            print(type(current_node))
+            raise InvalidDataError
 
-        idx = split_index(keys, lambda k: is_bit_set(k, height))
-
+        idx = len(keys)//2
         left_nodes, left_heights = await self._update_node(
-            keys[:idx], values[:idx], left_node, height + 1
+            keys[:idx], values[:idx], left_node, height, h + 1
         )
         right_nodes, right_heights = await self._update_node(
-            keys[idx:], values[idx:], right_node, height + 1
+            keys[idx:], values[idx:], right_node, height, h + 1
         )
 
         return (left_nodes + right_nodes, left_heights + right_heights)
