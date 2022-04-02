@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+
 from .errors import *
 from dingus.utils import hash
 from .constants import (
@@ -13,6 +14,8 @@ from .constants import (
     DEFAULT_SUBTREE_MAX_HEIGHT,
     EMPTY_HASH_PLACEHOLDER_PREFIX,
 )
+
+import dingus.tree.hasher as hasher
 
 
 @dataclass
@@ -134,10 +137,11 @@ class EmptyNode(object):
 class SubTree(object):
     structure: list[int]
     nodes: list[TreeNode]
+    hasher: hasher.Hasher
 
     @classmethod
     def structure_to_bins(
-        cls, structure, subtree_height: int = DEFAULT_SUBTREE_MAX_HEIGHT
+        cls, structure: list[int], subtree_height: int = DEFAULT_SUBTREE_MAX_HEIGHT
     ) -> list[tuple[int, int]]:
         V = 0
         bins = []
@@ -154,7 +158,6 @@ class SubTree(object):
         cls,
         data: bytes,
         key_length: int = DEFAULT_KEY_LENGTH,
-        subtree_height: int = DEFAULT_SUBTREE_MAX_HEIGHT,
     ) -> tuple[list[int], list[TreeNode]]:
         subtree_nodes = data[0] + 1
         # assert 1 <= subtree_nodes <= (2<<subtree_height)
@@ -190,8 +193,6 @@ class SubTree(object):
         # assert len(structure) == len(nodes) == subtree_nodes
         return (structure, nodes)
 
-        
-
     @property
     def data(self) -> bytes:
         subtree_nodes = (len(self.structure) - 1).to_bytes(1, "big")
@@ -201,31 +202,7 @@ class SubTree(object):
 
     @property
     def hash(self) -> bytes:
-        assert len(self.nodes) == len(self.structure)
-        hashes = [node.hash for node in self.nodes]
-
-        structure = list(self.structure)
-        for height in reversed(range(1, max(self.structure) + 1)):
-            _hashes = []
-            _structure = []
-
-            i = 0
-            while i < len(hashes):
-                if structure[i] == height:
-                    _hash = BranchNode._hash(hashes[i] + hashes[i + 1])
-                    _hashes.append(_hash)
-                    _structure.append(structure[i] - 1)
-    
-                    i += 1
-                else:
-                    _hashes.append(hashes[i])
-                    _structure.append(structure[i])
-                i += 1
-            hashes = _hashes
-            structure = _structure
-
-        assert len(hashes) == 1
-        return hashes[0]
+        return self.hasher.hash(self.nodes, self.structure)
 
 
 TreeNode = LeafNode | BranchNode | EmptyNode | SubTreeBranchNode

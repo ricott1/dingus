@@ -1,41 +1,10 @@
 from typing import Coroutine
 from dingus.tree.sparse_merkle_tree import SparseMerkleTree
 from dingus.tree.skip_merkle_tree import SkipMerkleTree
-from dingus.utils import hash
+from tests.tree.utils import create_test_case
 from dingus.tree.constants import EMPTY_HASH
 import time
 import asyncio
-import os
-
-
-KEY_LENGTH = 32
-
-def create_fixed():
-    return [
-        (bytes.fromhex("1031ea63d17304808ab76de5ccbad10e26441a3207f5947455eb99f040ea1800"), hash(bytes.fromhex("00"))),
-        (bytes.fromhex("a131ea63d17304808ab76de5ccbad10e26441a3207f5947455eb99f040ea1800"), hash(bytes.fromhex("01"))),
-        (bytes.fromhex("1231ea63d17304808ab76de5ccbad10e26441a3207f5947455eb99f040ea1800"), hash(bytes.fromhex("02"))),
-        (bytes.fromhex("2032ea63d17304808ab76de5ccbad10e26441a3207f5947455eb99f040ea1800"), hash(bytes.fromhex("05"))),
-        (bytes.fromhex("1036ea63d17304808ab76de5ccbad10e26441a3207f5947455eb99f040ea1800"), hash(bytes.fromhex("06"))),
-    ]
-
-def create_test_case(n: int, key_length: int = KEY_LENGTH) -> list[tuple[bytes, bytes]]:
-    data = [(os.urandom(key_length), os.urandom(32)) for _ in range(n)]
-    keys_set = {}
-    for i in range(len(data)):
-        key, value = data[i]
-        if key in keys_set:
-            data.pop(i) 
-        keys_set[key] = True
-
-    sorted_data = sorted(data, key=lambda d: d[0])
-    keys = []
-    values = []
-    for key, value in sorted_data:
-        keys.append(key)
-        values.append(value)
-    
-    return (keys, values)
 
 
 def test_update(capsys) -> None:
@@ -54,7 +23,7 @@ def test_update(capsys) -> None:
 async def case_testing_batch(
     initial_keys, initial_values, extra_keys, extra_values, capsys
 ) -> Coroutine[None, None, SparseMerkleTree]:
-    _smt = SparseMerkleTree(db="rocksdb")
+    _smt = SparseMerkleTree()
     assert _smt.root.hash == EMPTY_HASH
     start_time = time.time()
     new_root = await _smt.update(initial_keys, initial_values)
@@ -87,7 +56,7 @@ async def case_testing_batch(
 async def case_testing_skip(
     initial_keys, initial_values, extra_keys, extra_values, capsys
 ) -> Coroutine[None, None, SparseMerkleTree]:
-    _skmt = SkipMerkleTree(db="rocksdb")
+    _skmt = SkipMerkleTree()
     assert _skmt.root.hash == EMPTY_HASH
     start_time = time.time()
     new_root = await _skmt.update(initial_keys, initial_values)

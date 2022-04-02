@@ -1,6 +1,8 @@
+from .hasher import TreeHasher, ECCHasher
 from .constants import (
     DEFAULT_KEY_LENGTH,
     DEFAULT_SUBTREE_MAX_HEIGHT,
+    DEFAULT_HASHER
 )
 from .types import LeafNode, SubTree, EmptyNode, TreeNode, SubTreeBranchNode
 from .errors import *
@@ -17,12 +19,19 @@ class SkipMerkleTree(object):
         key_length: int = DEFAULT_KEY_LENGTH,
         subtree_height: int = DEFAULT_SUBTREE_MAX_HEIGHT,
         db: str = "inmemorydb",
+        hasher = DEFAULT_HASHER
     ) -> None:
         self.key_length = key_length
         self.subtree_height = subtree_height
         self.max_number_of_nodes = 1 << self.subtree_height
-        
-        self.root = SubTree([0], [EmptyNode()])
+        if hasher == "tree":
+            self.hasher = TreeHasher()
+        elif hasher == "ecc":
+            self.hasher = ECCHasher()
+        else:
+            self.hasher = TreeHasher()
+
+        self.root = SubTree([0], [EmptyNode()], self.hasher)
         if db == "inmemorydb":
             self._db = InMemoryDB()
         elif db == "rocksdb":
@@ -79,7 +88,7 @@ class SkipMerkleTree(object):
 
     async def get_subtree(self, node_hash: bytes) -> Coroutine[Any, Any, SubTree]:
         if node_hash == EmptyNode.hash:
-            return SubTree([0], [EmptyNode()])
+            return SubTree([0], [EmptyNode()], self.hasher)
 
         data = await self._db.get(node_hash)
         self.stats["db_get"] += 1
@@ -87,7 +96,7 @@ class SkipMerkleTree(object):
             raise MissingNodeError
 
         structure, nodes = SubTree.parse(data, self.key_length)
-        return SubTree(structure, nodes)
+        return SubTree(structure, nodes, self.hasher)
 
     async def set_subtree(self, subtree: SubTree) -> None:
         await self._db.set(subtree.hash, subtree.data)
@@ -130,19 +139,25 @@ class SkipMerkleTree(object):
         bin_keys = [[] for _ in range(self.max_number_of_nodes)]
         bin_values = [[] for _ in range(self.max_number_of_nodes)]
         b = height // 8
-        # FIXME: now that we cut subtree height into 2 need to map to 128 bins
+        
         for i in range(len(keys)):
             k, v = keys[i], values[i]
 
-            if height%8 == 0: #upper half
-                bin_idx = k[b] >> 4
-            elif height%8 == 4: #lower half
-                bin_idx = k[b] & 15
-            else:
-                raise InvalidKeyError
 
+            if self.subtree_height == 4:
+                if height%8 == 0: #upper half
+                    bin_idx = k[b] >> 4
+                elif height%8 == 4: #lower half
+                    bin_idx = k[b] & 15
+                else:
+                    raise InvalidKeyError
+            elif self.subtree_height == 8:
+                bin_idx = k[b]
+            elif self.subtree_height == 16:
+                bin_idx = k[b]*256 + k[b+1]
             bin_keys[bin_idx].append(k)
             bin_values[bin_idx].append(v)
+            
 
         new_nodes = []
         new_structure = []
@@ -163,7 +178,7 @@ class SkipMerkleTree(object):
         # print(f"nodes : {new_nodes} {new_structure}")
         # assert len(new_structure) == len(new_nodes)
         # assert len(new_structure) <= 2**self.subtree_height
-        new_subtree = SubTree(new_structure, new_nodes)
+        new_subtree = SubTree(new_structure, new_nodes, self.hasher)
         await self.set_subtree(new_subtree)
         return new_subtree
 
@@ -203,7 +218,7 @@ class SkipMerkleTree(object):
                 btm_subtree = await self.get_subtree(EmptyNode.hash)
 
             elif isinstance(current_node, LeafNode):
-                btm_subtree = SubTree([0], [current_node])
+                btm_subtree = SubTree([0], [current_node], self.hasher)
                 
             else:
                 raise InvalidDataError

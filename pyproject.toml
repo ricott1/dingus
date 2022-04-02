@@ -15,7 +15,7 @@ pyperclip = "^1.8.2"
 google = "^3.0.0"
 python-socketio = {extras = ["asyncio_client"], version = "^5.5.0"}
 pyaes = "^1.6.1"
-python-rocksdb = "^0.7.0"
+ECPy = "^1.2.5"
 
 [tool.poetry.dev-dependencies]
 pytest = "^6.2.5"

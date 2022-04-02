@@ -1,13 +1,14 @@
+from .hasher import TreeHasher, ECCHasher
 from .constants import (
     BRANCH_PREFIX,
     DEFAULT_KEY_LENGTH,
     LEAF_PREFIX,
+    DEFAULT_HASHER
 )
 from .types import LeafNode, BranchNode, EmptyNode, TreeNode
 from .utils import split_index, is_bit_set
 from .errors import *
 from typing import Coroutine, Any
-import asyncio
 
 from dingus.db import InMemoryDB, RocksDB
 
@@ -16,6 +17,8 @@ class SparseMerkleTree(object):
     def __init__(
         self, key_length: int = DEFAULT_KEY_LENGTH, db: str = "inmemorydb"
     ) -> None:
+        self.hasher = TreeHasher()
+        
         self.key_length = key_length
         self.root = EmptyNode()
         if db == "inmemorydb":
