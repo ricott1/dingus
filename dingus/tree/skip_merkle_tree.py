@@ -1,10 +1,11 @@
+from pytest import Instance
 from .hasher import TreeHasher, ECCHasher
 from .constants import (
     DEFAULT_KEY_LENGTH,
     DEFAULT_SUBTREE_MAX_HEIGHT,
     DEFAULT_HASHER
 )
-from .types import LeafNode, SubTree, EmptyNode, TreeNode, SubTreeBranchNode
+from .types import LeafNode, SubTree, EmptyNode, TreeNode, StubNode
 from .errors import *
 from .utils import is_bit_set
 from typing import Coroutine, Any
@@ -70,7 +71,7 @@ class SkipMerkleTree(object):
                 )
                 
                 body.append(preamble + connector + "──" * h + f"─<🌿{h}:{bin_key}:{node.hash.hex()[:hash_length]}")
-            elif isinstance(node, SubTreeBranchNode):
+            elif isinstance(node, StubNode):
                 current_subtree = await self.get_subtree(node.hash)
                 # right_node = await self.get_subtree(node.right_hash)
                 # left_node = await self.get_subtree(node.left_hash)
@@ -121,6 +122,17 @@ class SkipMerkleTree(object):
         self.root = await self._update_subtree(keys, values, self.root, 0)
         await self.write_to_db()
         return self.root
+    
+    async def delete(
+        self,
+        keys: list[bytes]
+    ) -> Coroutine[Any, Any, SubTree]:
+        if len(keys) == 0:
+            return self.root
+
+        self.root = await self._delete_keys_from_subtree(keys, self.root, 0)
+        await self.write_to_db()
+        return self.root
 
     async def _update_subtree(
         self,
@@ -136,8 +148,8 @@ class SkipMerkleTree(object):
         if len(keys) == 0:
             return current_subtree
 
-        bin_keys = [[] for _ in range(self.max_number_of_nodes)]
-        bin_values = [[] for _ in range(self.max_number_of_nodes)]
+        bin_keys: list[list[bytes]] = [[] for _ in range(self.max_number_of_nodes)]
+        bin_values: list[list[bytes]] = [[] for _ in range(self.max_number_of_nodes)]
         b = height // 8
         
         for i in range(len(keys)):
@@ -153,8 +165,7 @@ class SkipMerkleTree(object):
                     raise InvalidKeyError
             elif self.subtree_height == 8:
                 bin_idx = k[b]
-            elif self.subtree_height == 16:
-                bin_idx = k[b]*256 + k[b+1]
+            
             bin_keys[bin_idx].append(k)
             bin_values[bin_idx].append(v)
             
@@ -175,9 +186,7 @@ class SkipMerkleTree(object):
             V += incr
 
         assert V == self.max_number_of_nodes
-        # print(f"nodes : {new_nodes} {new_structure}")
-        # assert len(new_structure) == len(new_nodes)
-        # assert len(new_structure) <= 2**self.subtree_height
+
         new_subtree = SubTree(new_structure, new_nodes, self.hasher)
         await self.set_subtree(new_subtree)
         return new_subtree
@@ -208,8 +217,8 @@ class SkipMerkleTree(object):
         #If we are at the bottom of the tree, we call update_subtree and return update nodes
         if h == self.subtree_height:
             
-            if isinstance(current_node, SubTreeBranchNode):
-                # SubTreeBranchNode  can only be stored at bottom of subtree
+            if isinstance(current_node, StubNode):
+                # StubNode  can only be stored at bottom of subtree
                 btm_subtree = await self.get_subtree(current_node.hash)
                 await self._db.delete(current_node.hash)
                 self.stats["db_delete"] += 1
@@ -225,7 +234,7 @@ class SkipMerkleTree(object):
 
             assert len(keys) == len(values) == 1
             new_subtree = await self._update_subtree(keys[0], values[0], btm_subtree, height + h)
-            return ([SubTreeBranchNode(new_subtree.hash)], [h])
+            return ([StubNode(new_subtree.hash)], [h])
         
         #Else, we just call _update_node and return the returned values
         if isinstance(current_node, EmptyNode):
@@ -251,3 +260,94 @@ class SkipMerkleTree(object):
         )
 
         return (left_nodes + right_nodes, left_heights + right_heights)
+
+    async def _delete_keys_from_subtree(
+        self,
+        keys: list[bytes],
+        current_subtree: SubTree,
+        height: int
+    ) -> Coroutine[Any, Any, SubTree]:
+
+        bin_keys: list[list[bytes]] = [[] for _ in range(self.max_number_of_nodes)]
+        b = height // 8
+        
+        for i in range(len(keys)):
+            k = keys[i]
+
+            if self.subtree_height == 4:
+                if height%8 == 0: #upper half
+                    bin_idx = k[b] >> 4
+                elif height%8 == 4: #lower half
+                    bin_idx = k[b] & 15
+                else:
+                    raise InvalidKeyError
+            elif self.subtree_height == 8:
+                bin_idx = k[b]
+            
+            bin_keys[bin_idx].append(k)
+
+
+        new_nodes = []
+        V = 0
+        for i in range(len(current_subtree.nodes)):
+            h = current_subtree.structure[i]
+            current_node = current_subtree.nodes[i]
+            incr = 1 << (self.subtree_height - h) 
+            # node_keys = [k for _keys in bin_keys[V: V + incr] for k in _keys]
+            _node = await self._delete_node(bin_keys[V: V + incr], current_node, height)
+            
+            new_nodes.append(_node)
+            V += incr
+
+        assert V == self.max_number_of_nodes
+
+        nodes = list(current_subtree.nodes)
+        structure = list(current_subtree.structure)
+        # go through nodes again and replace empty siblings with an empty parent, recursively
+        for height in reversed(range(1, max(current_subtree.structure) + 1)):
+            new_nodes = []
+            new_structure = []
+
+            i = 0
+            while i < len(nodes):
+                if structure[i] == height:
+                    if isinstance(current_subtree.nodes[i], EmptyNode) and isinstance(current_subtree.nodes[i + 1], EmptyNode):
+                        new_nodes.append(EmptyNode())
+                        new_structure.append(structure[i] - 1)
+    
+                    i += 1
+                else:
+                    new_nodes.append(nodes[i])
+                    new_structure.append(structure[i])
+                i += 1
+                nodes = list(new_nodes)
+                structure = list(new_structure)
+            
+
+    async def _delete_node(
+        self,
+        keys: list[list[bytes]],
+        current_node: TreeNode,
+        height: int
+    ) -> Coroutine[Any, Any, TreeNode]:
+
+        # if node is already empty, just return it
+        if isinstance(current_node, EmptyNode):
+            return current_node
+        
+        # if node is a stub, get the subtree and update it. return new stub from subtree
+        if isinstance(current_node, StubNode):
+            stub = await self.get_subtree(current_node.hash)
+            await self._db.delete(current_node.hash)
+            self.stats["db_delete"] += 1
+            new_subtree: SubTree = await self._delete_keys_from_subtree(keys, stub, height + self.subtree_height)
+            return StubNode(new_subtree.hash)
+
+        # if node is a leaf a=with a key to be deleted, return empty
+        if Instance(current_node, LeafNode):
+            if any([current_node.key in _keys for _keys in keys]):
+                return EmptyNode
+            return current_node
+
+
+

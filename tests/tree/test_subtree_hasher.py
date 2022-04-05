@@ -14,10 +14,9 @@ def test_ecc_hasher():
     n = 256
     nodes = [LeafNode(os.urandom(32), os.urandom(32)) for _ in range(n)]
     structure = [8 for _ in range(n)]
-    values = [int.from_bytes(nodes[i].hash[:16] + structure[i].to_bytes(1, "big"), "big") for i in range(len(nodes))]
+    # values = [int.from_bytes(nodes[i].hash[:16] + structure[i].to_bytes(1, "big"), "big") for i in range(len(nodes))]
     for _ in range(100):
-        ECCHasher.fast_hash(values)
-    
+        ECCHasher.hash(nodes, structure)
 
 def test_ecc_hasher_safe():
     from ecpy.curves import Curve,Point

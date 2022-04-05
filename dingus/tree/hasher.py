@@ -1,6 +1,4 @@
 from ecpy.curves import Curve, Point
-import math
-from functools import reduce
 
 from dingus.utils import hash
 from .constants import EMPTY_HASH, BRANCH_PREFIX
@@ -54,14 +52,15 @@ class ECCHasher(object):
     def hash(cls, nodes: list[types.TreeNode], structure: list[int]) -> bytes:
         if len(nodes) == 1:
             return (int.from_bytes(nodes[0].hash + structure[0].to_bytes(1, "big"), "big")*ecc_generator).x.to_bytes(32, "big")
-        values = [int.from_bytes(nodes[i].hash + structure[i].to_bytes(1, "big"), "big") for i in range(len(nodes))]
-        return (math.prod(values)*ecc_generator).x.to_bytes(32, "big")
-    
-    @classmethod
-    def fast_hash(cls, values: list[int]) -> bytes: 
-        N = 2**256 
-        prod = reduce(lambda x, y: (x*y), values)
-        return (prod*ecc_generator).x.to_bytes(32, "big")
 
+        # mask = 0xFF* 32
+        values = (nodes[i].hash + structure[i].to_bytes(1, "big") for i in range(len(nodes)))
+
+        value = 1
+        for v in values:
+            value = (value*int.from_bytes(v, "big"))%eddsa.field
+        
+        value = int.from_bytes(hash(value.to_bytes(32, "big")), "big")
+        return (ecc_generator).x.to_bytes(32, "big")
 
 Hasher = TreeHasher | ECCHasher

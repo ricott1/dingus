@@ -102,7 +102,7 @@ class BranchNode(object):
         return hash(self.data)
 
 @dataclass
-class SubTreeBranchNode(object):
+class StubNode(object):
     hash: bytes
 
     @classmethod
@@ -110,10 +110,10 @@ class SubTreeBranchNode(object):
         return data[len(BRANCH_PREFIX) :]
     
     @classmethod
-    def from_data(cls, data: bytes) -> SubTreeBranchNode:
+    def from_data(cls, data: bytes) -> StubNode:
         assert len(data) == len(BRANCH_PREFIX) + NODE_HASH_SIZE
         _hash = cls.parse(data)
-        return SubTreeBranchNode(_hash)
+        return StubNode(_hash)
     
     @property
     def data(self) -> bytes:
@@ -124,7 +124,7 @@ class EmptyNode(object):
     hash = EMPTY_HASH
 
     @classmethod
-    def from_data(cls, data: bytes) -> SubTreeBranchNode:
+    def from_data(cls, data: bytes) -> StubNode:
         assert len(data) == len(EMPTY_HASH_PLACEHOLDER_PREFIX)
         return EmptyNode()
 
@@ -178,10 +178,10 @@ class SubTree(object):
                 node = LeafNode.from_data(nodes_data[:leaf_data_length], key_length)
                 nodes_data = nodes_data[leaf_data_length:]
             elif nodes_data.startswith(BRANCH_PREFIX):
-                _hash = SubTreeBranchNode.parse(
+                _hash = StubNode.parse(
                     nodes_data[:subtree_branch_data_length]
                 )
-                node = SubTreeBranchNode(_hash)
+                node = StubNode(_hash)
                 nodes_data = nodes_data[subtree_branch_data_length:]
             elif nodes_data.startswith(EMPTY_HASH_PLACEHOLDER_PREFIX):
                 node = EmptyNode()
@@ -205,4 +205,4 @@ class SubTree(object):
         return self.hasher.hash(self.nodes, self.structure)
 
 
-TreeNode = LeafNode | BranchNode | EmptyNode | SubTreeBranchNode
+TreeNode = LeafNode | BranchNode | EmptyNode | StubNode
