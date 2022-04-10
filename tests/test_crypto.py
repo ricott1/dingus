@@ -1,6 +1,7 @@
 import os
 import time
 
+
 def test_hashing(capsys):
     start_time = time.time()
     data = [os.urandom(1500) for _ in range(20000)]

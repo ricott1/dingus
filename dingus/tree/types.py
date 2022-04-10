@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-
+import dingus.tree.hasher as hasher
 from .errors import *
 from dingus.utils import hash
 from .constants import (
@@ -15,7 +15,7 @@ from .constants import (
     EMPTY_HASH_PLACEHOLDER_PREFIX,
 )
 
-import dingus.tree.hasher as hasher
+
 
 
 @dataclass

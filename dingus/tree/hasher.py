@@ -1,8 +1,8 @@
 from ecpy.curves import Curve, Point
-
+import dingus.tree.types as types
 from dingus.utils import hash
 from .constants import EMPTY_HASH, BRANCH_PREFIX
-import dingus.tree.types as types
+
 
 eddsa = Curve.get_curve('Ed25519')
 ecc_generator  = Point(
@@ -44,6 +44,10 @@ class TreeHasher(object):
 
         assert len(hashes) == 1
         return hashes[0]
+
+    @classmethod
+    def witness(cls, nodes: list[types.TreeNode], structure: list[int]) -> list[bytes]:
+        pass
 
 class ECCHasher(object):
     empty = (int.from_bytes(EMPTY_HASH + b'\x00', "big")*ecc_generator).x.to_bytes(32, "big")
