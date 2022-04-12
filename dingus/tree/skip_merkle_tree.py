@@ -1,7 +1,6 @@
 from itertools import accumulate
-from operator import le
+from typing import Coroutine, Any
 
-from numpy import isin
 from .hasher import TreeHasher, ECCHasher
 from .constants import (
     DEFAULT_KEY_LENGTH,
@@ -11,7 +10,7 @@ from .constants import (
 from .types import LeafNode, SubTree, EmptyNode, TreeNode, StubNode
 from .errors import *
 from .utils import is_bit_set
-from typing import Coroutine, Any
+
 
 
 from dingus.db import InMemoryDB, RocksDB
@@ -135,7 +134,7 @@ class SkipMerkleTree(object):
     ) -> Coroutine[Any, Any, SubTree]:
 
         self.stats["update_subtree_calls"] += 1
-        # assert len(keys) == len(values)
+        assert len(keys) == len(values)
         assert (height%self.subtree_height) == 0
         if len(keys) == 0:
             return current_subtree
@@ -146,7 +145,6 @@ class SkipMerkleTree(object):
         
         for i in range(len(keys)):
             k, v = keys[i], values[i]
-
 
             if self.subtree_height == 4:
                 if height%8 == 0: #upper half
@@ -179,8 +177,6 @@ class SkipMerkleTree(object):
             V += incr
 
         assert V == self.max_number_of_nodes
-
-        # new_subtree = SubTree(new_structure, new_nodes, self.hasher)
 
         # go through nodes again and push up empty nodes and single leaves, recursively
         for height in reversed(range(1, max(layer_structure) + 1)):
@@ -251,7 +247,6 @@ class SkipMerkleTree(object):
         assert len(keys) == len(values)
         self.stats["update_node_calls"] += 1
 
-        # total_data = sum([len(k) for k in keys])
         total_data = bin_length[-1] - base_length
         if total_data == 0:
             return ([current_node], [h])
@@ -300,11 +295,9 @@ class SkipMerkleTree(object):
 
             assert len(keys) == len(values) == 1
             new_subtree = await self._update_subtree(keys[0], values[0], btm_subtree, height + h)
-            # return ([StubNode(new_subtree.hash)], [h])
             if len(new_subtree.nodes) == 1:
                 # stub is empty or leaf
                 return ([new_subtree.nodes[0]], [h])
-            # return new stub from subtree
             return ([StubNode(new_subtree.hash)], [h])
         
         #Else, we just call _update_node and return the returned values
