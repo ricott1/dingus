@@ -52,9 +52,9 @@ async def skip_test(case, capsys):
     assert _skmt.root.hash == _skmt.hasher.empty
     update_root: SubTree = await _skmt.update(keys, values)
     
-    
-    # delete_keys = keys[:4]
-    new_root: SubTree = await _skmt.delete(delete_keys)
+    delete_values = [b"" for k in delete_keys]
+    new_root: SubTree = await _skmt.update(delete_keys[:3], delete_values[:3])
+    new_root: SubTree = await _skmt.update(delete_keys, delete_values)
     if not _skmt.root.hash == new_root.hash == root:
         # print(f"UT ROOT: {_skmt.root.hash.hex()} {update_root.hash.hex()}")
         print("CASE:", len(keys))

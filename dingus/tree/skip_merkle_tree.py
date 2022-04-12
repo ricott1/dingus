@@ -125,17 +125,6 @@ class SkipMerkleTree(object):
         self.root = await self._update_subtree(keys, values, self.root, 0)
         await self.write_to_db()
         return self.root
-    
-    async def delete(
-        self,
-        keys: list[bytes]
-    ) -> Coroutine[Any, Any, SubTree]:
-        if len(keys) == 0:
-            return self.root
-
-        self.root = await self._delete_keys_from_subtree(keys, self.root, 0)
-        await self.write_to_db()
-        return self.root
 
     async def _update_subtree(
         self,
@@ -173,8 +162,8 @@ class SkipMerkleTree(object):
             bin_values[bin_idx].append(v)
             
 
-        new_nodes = []
-        new_structure = []
+        layer_nodes = []
+        layer_structure = []
         V = 0
         for i in range(len(current_subtree.nodes)):
             h = current_subtree.structure[i]
@@ -185,13 +174,66 @@ class SkipMerkleTree(object):
             _nodes, _heights = await self._update_node(
                 bin_keys[V: V + incr], bin_values[V: V + incr], base_length, 0, current_node, height, h
             )
-            new_nodes += _nodes
-            new_structure += _heights
+            layer_nodes += _nodes
+            layer_structure += _heights
             V += incr
 
         assert V == self.max_number_of_nodes
 
-        new_subtree = SubTree(new_structure, new_nodes, self.hasher)
+        # new_subtree = SubTree(new_structure, new_nodes, self.hasher)
+
+        # go through nodes again and push up empty nodes and single leaves, recursively
+        for height in reversed(range(1, max(layer_structure) + 1)):
+            next_layer_nodes: list[TreeNode] = []
+            next_layer_structure: list[int] = []
+            i = 0
+            while i < len(layer_nodes):
+                # pair node with next one
+                if layer_structure[i] == height:
+                    #Push up empty node
+                    if isinstance(layer_nodes[i], EmptyNode) and isinstance(layer_nodes[i+1], EmptyNode):
+                        parent_node = layer_nodes[i]
+                    #Push up leaf node
+                    elif isinstance(layer_nodes[i], EmptyNode) and isinstance(layer_nodes[i+1], LeafNode):
+                        parent_node = layer_nodes[i+1]
+                    #Push up leaf node
+                    elif isinstance(layer_nodes[i], LeafNode) and isinstance(layer_nodes[i+1], EmptyNode):
+                        parent_node = layer_nodes[i]
+                    #Push up subtree node holding lower nodes. It will be unpacked later on
+                    else:
+                        if isinstance(layer_nodes[i], SubTree):
+                            left_nodes = layer_nodes[i].nodes
+                            left_structure = layer_nodes[i].structure
+                        else:
+                            left_nodes = [layer_nodes[i]]
+                            left_structure = [layer_structure[i]]
+                        if isinstance(layer_nodes[i+1], SubTree):
+                            right_nodes = layer_nodes[i+1].nodes
+                            right_structure = layer_nodes[i+1].structure
+                        else:
+                            right_nodes = [layer_nodes[i+1]]
+                            right_structure = [layer_structure[i+1]]
+                        parent_node = SubTree(left_structure + right_structure, left_nodes + right_nodes, self.hasher)
+
+                    next_layer_nodes.append(parent_node)
+                    next_layer_structure.append(layer_structure[i] - 1)
+                    i += 1 
+                # else just pass it up to next layer
+                else:
+                    next_layer_nodes.append(layer_nodes[i])
+                    next_layer_structure.append(layer_structure[i])
+                i += 1
+            layer_nodes = list(next_layer_nodes)
+            layer_structure = list(next_layer_structure)
+
+        assert len(layer_nodes) == 1
+        if isinstance(layer_nodes[0], SubTree):
+            # the last node is already a subtree, just assign it
+            new_subtree = layer_nodes[0]
+        else:
+            #the last node is an empty or leaf node, create a fake subtree that will be unpacked later
+            new_subtree = SubTree([0], layer_nodes, self.hasher)
+
         await self.set_subtree(new_subtree)
         return new_subtree
 
@@ -218,15 +260,24 @@ class SkipMerkleTree(object):
             idx = bin_length.index(base_length + 1)
             
             if isinstance(current_node, EmptyNode):
-                new_leaf = LeafNode(keys[idx][0], values[idx][0])
-                self.stats["leaf_created"] += 1
-                return ([new_leaf], [h])
-            
-            if isinstance(current_node, LeafNode):
-                if current_node.key == keys[idx][0]:
+                # if the update value is non-empty, return a new leaf
+                if len(values[idx][0]) != 0:
                     new_leaf = LeafNode(keys[idx][0], values[idx][0])
                     self.stats["leaf_created"] += 1
                     return ([new_leaf], [h])
+                # else return the empty node (deleting an empty node)
+                return ([current_node], [h])
+
+            
+            if isinstance(current_node, LeafNode):
+                if current_node.key == keys[idx][0]:
+                    # if the update value is non-empty, update the leaf
+                    if len(values[idx][0]) != 0:
+                        new_leaf = LeafNode(keys[idx][0], values[idx][0])
+                        self.stats["leaf_created"] += 1
+                        return ([new_leaf], [h])
+                    # else return the empty node (deleting a leaf node)
+                    return ([EmptyNode()], [h])
                 
         
         #If we are at the bottom of the tree, we call update_subtree and return update nodes
@@ -249,6 +300,11 @@ class SkipMerkleTree(object):
 
             assert len(keys) == len(values) == 1
             new_subtree = await self._update_subtree(keys[0], values[0], btm_subtree, height + h)
+            # return ([StubNode(new_subtree.hash)], [h])
+            if len(new_subtree.nodes) == 1:
+                # stub is empty or leaf
+                return ([new_subtree.nodes[0]], [h])
+            # return new stub from subtree
             return ([StubNode(new_subtree.hash)], [h])
         
         #Else, we just call _update_node and return the returned values
@@ -275,141 +331,3 @@ class SkipMerkleTree(object):
         )
 
         return (left_nodes + right_nodes, left_heights + right_heights)
-
-    async def _delete_keys_from_subtree(
-        self,
-        keys: list[bytes],
-        current_subtree: SubTree,
-        height: int
-    ) -> Coroutine[Any, Any, SubTree]:
-
-        if len(keys) == 0:
-            return current_subtree
-
-        bin_keys: list[list[bytes]] = [[] for _ in range(self.max_number_of_nodes)]
-        b = height // 8
-        
-        for i in range(len(keys)):
-            k = keys[i]
-
-            if self.subtree_height == 4:
-                if height%8 == 0: #upper half
-                    bin_idx = k[b] >> 4
-                elif height%8 == 4: #lower half
-                    bin_idx = k[b] & 15
-                else:
-                    raise InvalidKeyError
-            elif self.subtree_height == 8:
-                bin_idx = k[b]
-            
-            bin_keys[bin_idx].append(k)
-
-        nodes = []
-        V = 0
-        # similarly to the update function, we assign all delete keys to correct bin. Notice that this works even if the delete key is not in the tree
-        # we update the nodes on the fly, without caring of pushing up empty nodes or leaves here
-        for i in range(len(current_subtree.nodes)):
-            h = current_subtree.structure[i]
-            current_node = current_subtree.nodes[i]
-            incr = 1 << (self.subtree_height - h) 
-            _node: TreeNode = await self._delete_node(bin_keys[V: V + incr], current_node, height)
-            nodes.append(_node)
-            V += incr
-
-        assert V == self.max_number_of_nodes
-
-        structure = list(current_subtree.structure)
-
-        
-        # go through nodes again and push up empty nodes and single leaves, recursively
-        for height in reversed(range(1, max(current_subtree.structure) + 1)):
-            new_nodes: list[TreeNode] = []
-            new_structure: list[int] = []
-            i = 0
-            while i < len(nodes):
-                # pair node with next one
-                if structure[i] == height:
-                    #Push up empty node
-                    if isinstance(nodes[i], EmptyNode) and isinstance(nodes[i+1], EmptyNode):
-                        parent_node = nodes[i]
-                    #Push up leaf node
-                    elif isinstance(nodes[i], EmptyNode) and isinstance(nodes[i+1], LeafNode):
-                        parent_node = nodes[i+1]
-                    #Push up leaf node
-                    elif isinstance(nodes[i], LeafNode) and isinstance(nodes[i+1], EmptyNode):
-                        parent_node = nodes[i]
-                    #Push up subtree node holding lower nodes. It will be unpacked later on
-                    else:
-                        if isinstance(nodes[i], SubTree):
-                            left_nodes = nodes[i].nodes
-                            left_structure = nodes[i].structure
-                        else:
-                            left_nodes = [nodes[i]]
-                            left_structure = [structure[i]]
-                        if isinstance(nodes[i+1], SubTree):
-                            right_nodes = nodes[i+1].nodes
-                            right_structure = nodes[i+1].structure
-                        else:
-                            right_nodes = [nodes[i+1]]
-                            right_structure = [structure[i+1]]
-                        parent_node = SubTree(left_structure + right_structure, left_nodes + right_nodes, self.hasher)
-
-                    new_nodes.append(parent_node)
-                    new_structure.append(structure[i] - 1)
-                    i += 1 
-                # else just pass it up to next layer
-                else:
-                    new_nodes.append(nodes[i])
-                    new_structure.append(structure[i])
-                i += 1
-            nodes = list(new_nodes)
-            structure = list(new_structure)
-
-        assert len(nodes) == 1
-        if isinstance(nodes[0], SubTree):
-            # the last node is already a subtree, just assign it
-            new_subtree = nodes[0]
-        else:
-            #the last node is an empty or leaf node, create a fake subtree that will be unpacked later
-            new_subtree = SubTree([0], nodes, self.hasher)
-        
-        await self.set_subtree(new_subtree)
-        return new_subtree
-            
-
-    async def _delete_node(
-        self,
-        keys: list[list[bytes]],
-        current_node: TreeNode,
-        height: int
-    ) -> Coroutine[Any, Any, TreeNode]:
-        
-        # if node is already empty, just return it
-        if isinstance(current_node, EmptyNode):
-            return current_node
-        
-        # if node is a stub, get the subtree and update it
-        if isinstance(current_node, StubNode):
-            stub = await self.get_subtree(current_node.hash)
-            await self._db.delete(current_node.hash)
-            self.stats["db_delete"] += 1
-            delete_keys = [k for _keys in keys for k in _keys]
-            if delete_keys:
-                new_subtree: SubTree = await self._delete_keys_from_subtree(delete_keys, stub, height + self.subtree_height)
-                if len(new_subtree.nodes) == 1:
-                    # stub is empty or leaf
-                    return new_subtree.nodes[0]
-                # return new stub from subtree
-                return StubNode(new_subtree.hash)
-            else:
-                # nothing to do
-                return current_node
-
-        # if node is a leaf with a key to be deleted, return empty
-        if isinstance(current_node, LeafNode):
-            if any([current_node.key in _keys for _keys in keys]):
-                return EmptyNode()
-            return current_node
-        
-
-
