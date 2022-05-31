@@ -1,0 +1,11 @@
+syntax = "proto2";
+
+message Transaction {
+    required bytes moduleID = 1;
+    required bytes commandID = 2;
+    required uint64 nonce = 3;
+    required uint64 fee = 4;
+    required bytes senderPublicKey = 5;
+    required bytes asset = 6;
+    repeated bytes signatures = 7;
+  }

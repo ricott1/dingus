@@ -6,8 +6,8 @@ import os
 
 def test_send_transaction():
     params = {
-        "moduleID": 2,
-        "assetID": 0,
+        "moduleID": bytes.fromhex("02"),
+        "commandID": bytes.fromhex("00"),
         "senderPublicKey": utils.random_public_key().encode(),
         "nonce": 0,
         "fee": int(0.5 * LSK),

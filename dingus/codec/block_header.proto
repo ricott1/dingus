@@ -1,0 +1,23 @@
+syntax = "proto2";
+
+message Block {
+    required uint32 version = 1;
+    required uint32 timestamp = 2;
+    required uint32 height = 3;
+    required bytes previousBlockID = 4;
+    required bytes generatorAddress = 5;
+    required bytes transactionRoot = 6;
+    required bytes assetRoot = 7;
+    required bytes eventRoot = 8;
+    required bytes stateRoot = 9;
+    required uint32 maxHeightPrevoted = 10;
+    required uint32 maxHeightGenerated = 11;
+    required bytes validatorsHash = 12;
+    message AggregateCommit {
+        required uint32 height = 1;
+        required bytes aggregationBits = 2;
+        required bytes certificateSignature = 3;
+    }
+    required AggregateCommit aggregateCommit = 13;
+    required bytes signatures = 14;
+  }

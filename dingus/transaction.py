@@ -1,6 +1,5 @@
 from __future__ import annotations
 import logging
-from posix import environ
 
 import dingus.codec as codec
 import dingus.utils as utils
@@ -13,7 +12,6 @@ from dingus.constants import (
     EDSA_PUBLIC_KEY_LENGTH,
 )
 from dingus.codec.json_format import MessageToDict
-from google.protobuf.reflection import GeneratedProtocolMessageType
 from nacl.signing import SigningKey
 
 import os
@@ -22,7 +20,7 @@ import json
 
 class Transaction(object):
     def __init__(self, params: dict) -> None:
-        self.schema = codec.base_transaction.Transaction()
+        self.schema = codec.transaction.Transaction()
         for k, v in params.items():
             # asset is handled separately
             if k == "asset":
@@ -39,7 +37,7 @@ class Transaction(object):
                 self.schema.signatures.extend([signature])
 
         self.asset = module_asset_to_schema[
-            f"{params['moduleID']}:{params['assetID']}"
+            f"{params['moduleID']}:{params['commandID']}"
         ].from_dict(params["asset"])
         self.schema.asset = self.asset.bytes
         self.unsigned_bytes = self.schema.SerializeToString()
@@ -57,9 +55,9 @@ class Transaction(object):
     def validate_parameters(cls, params: dict) -> None:
         assert "moduleID" in params, "Missing 'moduleID' parameter."
         assert (
-            f"{params['moduleID']}:{params['assetID']}" in module_asset_to_schema
-        ), "Invalid 'moduleID:assetID' combination."
-        assert "assetID" in params, "Missing 'assetID' parameter."
+            f"{params['moduleID']}:{params['commandID']}" in module_asset_to_schema
+        ), "Invalid 'moduleID:commandID' combination."
+        assert "commandID" in params, "Missing 'commandID' parameter."
         assert "senderPublicKey" in params, "Missing 'senderPublicKey' parameter."
         assert (
             len(params["senderPublicKey"]) == EDSA_PUBLIC_KEY_LENGTH
@@ -76,12 +74,12 @@ class Transaction(object):
         return Transaction(params)
 
     @property
-    def moduleID(self) -> int:
+    def moduleID(self) -> bytes:
         return self.schema.moduleID
 
     @property
-    def assetID(self) -> int:
-        return self.schema.assetID
+    def commandID(self) -> bytes:
+        return self.schema.commandID
 
     @property
     def senderPublicKey(self) -> bytes:

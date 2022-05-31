@@ -9,26 +9,14 @@ def get_cases() -> list[dict]:
     with open("tests/tree/fixtures/smt.json", "r") as f:
         test_cases = json.load(f)["testCases"]
     for case in test_cases:
-        data = zip(
-            [bytes.fromhex(i) for i in case["input"]["keys"]],
-            [bytes.fromhex(i) for i in case["input"]["values"]],
-        )
-        sorted_data = sorted(data, key=lambda d: d[0])
-        keys = []
-        values = []
-        for key, value in sorted_data:
-            keys.append(key)
-            values.append(value)
-        _cases.append(
-            {
-                "keys": keys,
-                "values": values,
-                "root": bytes.fromhex(case["output"]["merkleRoot"]),
-            }
-        )
+        _cases.append({
+            "keys": [bytes.fromhex(i) for i in case["input"]["keys"]],
+            "delete_keys": [bytes.fromhex(i) for i in case["input"]["deleteKeys"]],
+            "values": [bytes.fromhex(i) for i in case["input"]["values"]],
+            "root": bytes.fromhex(case["output"]["merkleRoot"])
+        })
 
     return _cases
-
 
 test_cases = get_cases()
 

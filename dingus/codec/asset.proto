@@ -1,0 +1,6 @@
+syntax = "proto2";
+
+message Asset {
+    required bytes moduleID = 1;
+    required bytes data = 2;
+  }

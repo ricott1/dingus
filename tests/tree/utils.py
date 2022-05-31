@@ -1,4 +1,5 @@
 import os
+from dingus.utils import hash
 
 KEY_LENGTH = 32
 
@@ -46,6 +47,6 @@ def create_test_case(n: int, key_length: int = KEY_LENGTH) -> list[tuple[bytes, 
             keys.pop(i)
         keys_set[key] = True
 
-    values = [os.urandom(key_length) for _ in range(len(keys))]
+    values = [hash(k) for k in keys]
 
     return (keys, values)

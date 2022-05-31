@@ -6,6 +6,7 @@ from .errors import *
 from dingus.utils import hash
 from .constants import (
     DEFAULT_KEY_LENGTH,
+    EMPTY_VALUE,
     LEAF_PREFIX,
     INTERNAL_LEAF_PREFIX,
     BRANCH_PREFIX,
@@ -14,8 +15,7 @@ from .constants import (
     DEFAULT_SUBTREE_MAX_HEIGHT,
     EMPTY_HASH_PLACEHOLDER_PREFIX,
 )
-
-
+from .utils import binary_expansion
 
 
 @dataclass
@@ -24,9 +24,7 @@ class LeafNode(object):
     value: bytes
 
     @classmethod
-    def parse(
-        cls, data: bytes, key_length: int = DEFAULT_KEY_LENGTH
-    ) -> tuple[bytes, bytes]:
+    def parse(cls, data: bytes, key_length: int = DEFAULT_KEY_LENGTH) -> tuple[bytes, bytes]:
         key = data[len(LEAF_PREFIX) : len(LEAF_PREFIX) + key_length]
         value = data[len(LEAF_PREFIX) + key_length :]
         return (key, value)
@@ -34,7 +32,7 @@ class LeafNode(object):
     @classmethod
     def _hash(cls, data: bytes) -> bytes:
         return hash(LEAF_PREFIX + data)
-    
+
     @classmethod
     def from_data(cls, data: bytes, key_length: int = DEFAULT_KEY_LENGTH) -> LeafNode:
         assert len(data) == len(LEAF_PREFIX) + key_length + NODE_HASH_SIZE
@@ -56,9 +54,7 @@ class InternalLeafNode(object):
     value: bytes
 
     @classmethod
-    def parse(
-        cls, data: bytes, key_length: int = DEFAULT_KEY_LENGTH
-    ) -> tuple[bytes, bytes]:
+    def parse(cls, data: bytes, key_length: int = DEFAULT_KEY_LENGTH) -> tuple[bytes, bytes]:
         key = data[len(INTERNAL_LEAF_PREFIX) : key_length + len(INTERNAL_LEAF_PREFIX)]
         value = data[key_length + len(INTERNAL_LEAF_PREFIX) :]
         return (key, value)
@@ -82,7 +78,7 @@ class BranchNode(object):
         left_hash = data[-2 * NODE_HASH_SIZE : -1 * NODE_HASH_SIZE]
         right_hash = data[-1 * NODE_HASH_SIZE :]
         return (left_hash, right_hash)
-    
+
     @classmethod
     def from_data(cls, data: bytes) -> BranchNode:
         assert len(data) == len(BRANCH_PREFIX) + NODE_HASH_SIZE + NODE_HASH_SIZE
@@ -101,6 +97,7 @@ class BranchNode(object):
     def hash(self) -> bytes:
         return hash(self.data)
 
+
 @dataclass
 class StubNode(object):
     hash: bytes
@@ -108,16 +105,17 @@ class StubNode(object):
     @classmethod
     def parse(cls, data: bytes) -> bytes:
         return data[len(BRANCH_PREFIX) :]
-    
+
     @classmethod
     def from_data(cls, data: bytes) -> StubNode:
         assert len(data) == len(BRANCH_PREFIX) + NODE_HASH_SIZE
         _hash = cls.parse(data)
         return StubNode(_hash)
-    
+
     @property
     def data(self) -> bytes:
         return BRANCH_PREFIX + self.hash
+
 
 @dataclass
 class EmptyNode(object):
@@ -140,15 +138,13 @@ class SubTree(object):
     hasher: hasher.Hasher
 
     @classmethod
-    def structure_to_bins(
-        cls, structure: list[int], subtree_height: int = DEFAULT_SUBTREE_MAX_HEIGHT
-    ) -> list[tuple[int, int]]:
+    def structure_to_bins(cls, structure: list[int], subtree_height: int = DEFAULT_SUBTREE_MAX_HEIGHT) -> list[tuple[int, int]]:
         V = 0
         bins = []
-        
+
         for h in structure:
-            bins.append((V, V + (1 <<(subtree_height - h))))
-            V += (1 <<(subtree_height - h))
+            bins.append((V, V + (1 << (subtree_height - h))))
+            V += 1 << (subtree_height - h)
 
         assert V == (1 << subtree_height)
         return bins
@@ -178,9 +174,7 @@ class SubTree(object):
                 node = LeafNode.from_data(nodes_data[:leaf_data_length], key_length)
                 nodes_data = nodes_data[leaf_data_length:]
             elif nodes_data.startswith(BRANCH_PREFIX):
-                _hash = StubNode.parse(
-                    nodes_data[:subtree_branch_data_length]
-                )
+                _hash = StubNode.parse(nodes_data[:subtree_branch_data_length])
                 node = StubNode(_hash)
                 nodes_data = nodes_data[subtree_branch_data_length:]
             elif nodes_data.startswith(EMPTY_HASH_PLACEHOLDER_PREFIX):
@@ -206,3 +200,52 @@ class SubTree(object):
 
 
 TreeNode = LeafNode | BranchNode | EmptyNode | StubNode
+
+
+@dataclass
+class Query(object):
+    key: bytes
+    value: bytes
+    bitmap: bytes
+
+    def __post_init__(self) -> None:
+        self.binary_bitmap = binary_expansion(self.bitmap).lstrip("0")
+        self.hash = EMPTY_HASH if self.value == EMPTY_VALUE else LeafNode(self.key, self.value).hash
+
+    @property
+    def binary_path(self) -> str:
+        # Convert the key to binary
+        return binary_expansion(self.key)[: self.height]
+
+    @property
+    def binary_key(self) -> str:
+        # Convert the key to binary with fixed length
+        return binary_expansion(self.key)
+
+    @property
+    def height(self) -> int:
+        return len(self.binary_bitmap)
+
+    def is_sibling_of(self, q: Query) -> bool:
+        if len(self.binary_bitmap) != len(q.binary_bitmap):
+            return False
+
+        # end of string is exclusive
+        if self.binary_key[: self.height - 1] != q.binary_key[: q.height - 1]:
+            return False
+
+        return (self.binary_key[self.height - 1] == "0" and q.binary_key[self.height - 1] == "1") or (
+            self.binary_key[self.height - 1] == "1" and q.binary_key[self.height - 1] == "0"
+        )
+
+
+@dataclass
+class QueryWithProof(Query):
+    ancestor_hashes: list[bytes]
+    sibling_hashes: list[bytes]
+
+
+@dataclass
+class Proof(object):
+    sibling_hashes: list[bytes]
+    queries: list[Query]

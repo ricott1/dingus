@@ -2,6 +2,7 @@ from dingus.tree.constants import EMPTY_HASH
 import json
 import asyncio
 import dingus.tree.skip_merkle_tree as skmt
+import dingus.tree.sparse_merkle_tree as smt
 
 
 def get_cases() -> list[dict]:
@@ -18,7 +19,6 @@ def get_cases() -> list[dict]:
 
     return _cases
 
-
 test_cases = get_cases()
 
 
@@ -33,9 +33,15 @@ async def skip_test(case, capsys):
     root = case["root"]
 
     _skmt = skmt.SkipMerkleTree()
-
     assert _skmt.root.hash == EMPTY_HASH
     print("CASE:", len(keys))
     new_root = await _skmt.update(keys, values)
 
     assert _skmt.root.hash == root == new_root.hash
+
+    _smt = smt.SparseMerkleTree()
+    assert _smt.root.hash == EMPTY_HASH
+    print("CASE:", len(keys))
+    smt_new_root = await _smt.update(keys, values)
+
+    assert _smt.root.hash == root == smt_new_root.hash

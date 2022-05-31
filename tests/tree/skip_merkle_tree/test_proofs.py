@@ -1,0 +1,82 @@
+import os
+from dingus.tree.constants import EMPTY_HASH
+import json
+import asyncio
+import dingus.tree.skip_merkle_tree as skmt
+import dingus.tree.sparse_merkle_tree as smt
+from dingus.tree.skip_merkle_tree import verify
+from dingus.tree.types import Proof, Query
+
+
+def get_cases() -> list[dict]:
+    _cases = []
+    with open("tests/tree/fixtures/smt_proof.json", "r") as f:
+        test_cases = json.load(f)["testCases"]
+    for case in test_cases:
+        _cases.append({
+            "keys": [bytes.fromhex(i) for i in case["input"]["keys"]],
+            "delete_keys": [bytes.fromhex(i) for i in case["input"]["deleteKeys"]],
+            "query_keys": [bytes.fromhex(i) for i in case["input"]["queryKeys"]],
+            "values": [bytes.fromhex(i) for i in case["input"]["values"]],
+            "root": bytes.fromhex(case["output"]["merkleRoot"]),
+            "proof": Proof([bytes.fromhex(h) for h in case["output"]["proof"]["siblingHashes"]], [Query(bytes.fromhex(q["key"]), bytes.fromhex(q["value"]), bytes.fromhex(q["bitmap"])) for q in case["output"]["proof"]["queries"]])
+        })
+
+    return _cases
+
+
+test_cases = get_cases()
+
+
+def test_skip_merkle_tree_fixtures(capsys):
+    for case in test_cases:
+        asyncio.run(skip_test(case, capsys))
+
+
+async def skip_test(case, capsys):
+    keys = case["keys"]
+    values = case["values"]
+    root = case["root"]
+    query_keys = case["query_keys"]
+    fixture_proof: Proof = case["proof"]
+
+    _skmt = skmt.SkipMerkleTree()
+
+    assert _skmt.root.hash == EMPTY_HASH
+    print("CASE:", len(keys))
+    new_root = await _skmt.update(keys, values)
+
+    assert _skmt.root.hash == root == new_root.hash
+
+    _smt = smt.SparseMerkleTree()
+    new_root = await _smt.update(keys, values)
+    assert _smt.root.hash == root == new_root.hash
+    # assert _skmt.root.hash == _smt.root.hash
+    print(await _smt.print(_smt.root))
+
+    proof = await _skmt.generate_proof(query_keys)
+
+    assert len(proof.queries) == len(fixture_proof.queries)
+    for query, fixture_query in zip(proof.queries, fixture_proof.queries):
+        assert query.key == fixture_query.key
+        assert query.value == fixture_query.value 
+        assert query.bitmap == fixture_query.bitmap
+
+    assert proof.queries == fixture_proof.queries
+    # print("\nQUERYING: ", [k.hex()[:4] for k in query_keys])
+    # print("\nFIXTURE HASHES: ", [k.hex()[:4] for k in fixture_proof.sibling_hashes])
+    # print("\nSIBLING HASHES: ", [k.hex()[:4] for k in proof.sibling_hashes])
+    
+    assert proof.sibling_hashes == fixture_proof.sibling_hashes
+
+    assert verify(query_keys, proof, root)
+
+    random_queries = query_keys + [os.urandom(32) for _ in range(1)]
+    random_proof = await _skmt.generate_proof(random_queries)
+    print("QUERY KEYS:", [k.hex()[:4] for k in query_keys])
+    print("RANDOM QUERIES:", [k.hex()[:4] for k in random_queries])
+    print("RANDOM Proofs:", [q.key.hex()[:4] for q in random_proof.queries], [q.value.hex()[:4] for q in random_proof.queries], [q.binary_bitmap for q in random_proof.queries])
+    
+    assert verify(random_queries, random_proof, root)
+
+    

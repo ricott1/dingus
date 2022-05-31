@@ -1,10 +1,4 @@
-from .hasher import TreeHasher, ECCHasher
-from .constants import (
-    BRANCH_PREFIX,
-    DEFAULT_KEY_LENGTH,
-    LEAF_PREFIX,
-    DEFAULT_HASHER
-)
+from .constants import BRANCH_PREFIX, DEFAULT_KEY_LENGTH, LEAF_PREFIX, DEFAULT_HASHER
 from .types import LeafNode, BranchNode, EmptyNode, TreeNode
 from .utils import split_index, is_bit_set
 from .errors import *
@@ -14,11 +8,7 @@ from dingus.db import InMemoryDB, RocksDB
 
 
 class SparseMerkleTree(object):
-    def __init__(
-        self, key_length: int = DEFAULT_KEY_LENGTH, db: str = "inmemorydb"
-    ) -> None:
-        self.hasher = TreeHasher()
-        
+    def __init__(self, key_length: int = DEFAULT_KEY_LENGTH, db: str = "inmemorydb") -> None:
         self.key_length = key_length
         self.root = EmptyNode()
         if db == "inmemorydb":
@@ -35,21 +25,15 @@ class SparseMerkleTree(object):
             "update_calls": 0,
         }
 
-    async def print(
-        self, node: TreeNode, preamble: str = "    ", hash_length: int = 4
-    ) -> str:
+    async def print(self, node: TreeNode, preamble: str = "    ", hash_length: int = 4) -> str:
         BROWN = lambda t: f"\u001b[38;2;{105};{103};{60}m" + t + "\u001b[0m"
         if isinstance(node, EmptyNode):
             return "∅"
 
         if isinstance(node, LeafNode):
-            key = node.key[:4]
-            bin_key = (
-                bin(int.from_bytes(key, "big"))
-                .lstrip("0b")
-                .zfill(8 * len(key))
-            )
-            return f"─<🌿{bin_key}:{node.hash.hex()[:hash_length]}"
+            key = node.key[:2]
+            bin_key = bin(int.from_bytes(key, "big")).lstrip("0b").zfill(8 * len(key))
+            return f"─<🌿{key.hex()}:{node.hash.hex()[:hash_length]}"
 
         right_node = await self.get_node(node.right_hash)
         left_node = await self.get_node(node.left_hash)
@@ -180,17 +164,18 @@ class SparseMerkleTree(object):
         self,
         keys: list[bytes],
         values: list[bytes],
-        starting_height: int = 0,
     ) -> Coroutine[Any, Any, TreeNode]:
         """
         As specified in from https:#github.com/LiskHQ/lips/blob/master/proposals/lip-0039.md
         """
         if len(keys) == 0:
             return self.root
-        # if len(keys) == 1:
-        #     return await self.update(keys[0], values[0])
 
-        self.root = await self._update(keys, values, self.root, starting_height)
+        sorted_data = sorted(zip(keys, values), key=lambda d: d[0])
+        keys = [key for key, _ in sorted_data]
+        values = [value for _, value in sorted_data]
+
+        self.root = await self._update(keys, values, self.root, 0)
         await self.write_to_db()
         return self.root
 
@@ -247,12 +232,8 @@ class SparseMerkleTree(object):
         #         self._update(keys[idx:], values[idx:], right_node, height + 1),
         #     )
         # else:
-        left_node = await self._update(
-            keys[:idx], values[:idx], left_node, height + 1
-        )
-        right_node = await self._update(
-            keys[idx:], values[idx:], right_node, height + 1
-        )
+        left_node = await self._update(keys[:idx], values[:idx], left_node, height + 1)
+        right_node = await self._update(keys[idx:], values[idx:], right_node, height + 1)
 
         current_node = BranchNode(left_node.hash, right_node.hash)
         self.stats["branch_created"] += 1
