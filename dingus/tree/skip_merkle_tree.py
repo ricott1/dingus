@@ -23,7 +23,7 @@ from .types import (
     StubNode,
 )
 from .errors import *
-from .utils import binary_expansion, binary_search, is_bit_set
+from .utils import binary_expansion, binary_search, is_bit_set, binary_to_bytes
 from dingus.utils import hash
 from dingus.db import InMemoryDB, RocksDB
 
@@ -388,6 +388,8 @@ class SkipMerkleTree(object):
         return Proof(sibling_hashes, queries)
 
     async def _generate_query_proof(self, current_subtree: SubTree, query_key: bytes, height: int) -> QueryWithProof:
+        if len(query_key) != self.key_length:
+            raise Exception('Invalid length of query_key')
         b = height // 8
         if self.subtree_height == 4:
             if height % 8 == 0:  # upper half
@@ -398,70 +400,76 @@ class SkipMerkleTree(object):
                 raise InvalidKeyError
         elif self.subtree_height == 8:
             bin_idx = query_key[b]
-
+        print("\nCURRENT SUBTREE, ", height, current_subtree.structure, [n.__class__.__name__ for n in current_subtree.nodes])
         V = 0
         for i in range(len(current_subtree.nodes)):
             h = current_subtree.structure[i]
             current_node = current_subtree.nodes[i]
             incr = 1 << (self.subtree_height - h)
             if V <= bin_idx < V + incr:
-                break
+                break 
             V += incr
 
-        query_hash = current_node.hash
-        query_height = int(h)
-        # Calculate ancestor and sibling hashes using the query_hash as starting point
+        
+        
         ancestor_hashes = []
         sibling_hashes = []
-        hashes = [node.hash for node in current_subtree.nodes]
+
+        nodes = list(current_subtree.nodes)
         structure = list(current_subtree.structure)
         binary_bitmap = ""
+        
+        query_height = int(h)
+        target_node = current_node
+
+        # Calculate ancestor and sibling hashes using the target_node as starting point
+        # Recalculate internal hashes from the stored current_subtree.nodes, while apending to sibling_hashes the one needed in the queried path.
         for s in reversed(range(1, max(structure) + 1)):
-            _hashes = []
+            _nodes = []
             _structure = []
 
             i = 0
-            while i < len(hashes):
+            while i < len(nodes):
                 if structure[i] == s:
-                    _hash = hash(BRANCH_PREFIX + hashes[i] + hashes[i + 1])
-                    _hashes.append(_hash)
+                    parent_node = BranchNode(nodes[i].hash, nodes[i + 1].hash)
+                    _nodes.append(parent_node)
                     _structure.append(structure[i] - 1)
-                    if query_hash == hashes[i]:
-                        ancestor_hashes.insert(0, _hash)
-                        query_hash = _hash
-                        if hashes[i + 1] == EmptyNode.hash:
+                    # check if the target node is the next
+                    # 'is' operator checks equality of pointers
+                    if target_node is nodes[i]:
+                        ancestor_hashes.insert(0, parent_node.hash)
+                        target_node = parent_node
+                        if isinstance(nodes[i + 1], EmptyNode):
                             binary_bitmap = binary_bitmap + "0"
                         else:
                             binary_bitmap = binary_bitmap + "1"
-                            sibling_hashes.insert(0, hashes[i + 1])
-
-                    elif query_hash == hashes[i + 1]:
-                        ancestor_hashes.insert(0, _hash)
-                        query_hash = _hash
-                        if hashes[i] == EmptyNode.hash:
+                            sibling_hashes.insert(0, nodes[i + 1].hash)
+                    # 'is' operator checks equality of pointers
+                    elif target_node is nodes[i + 1]:
+                        ancestor_hashes.insert(0, parent_node.hash)
+                        target_node = parent_node
+                        if isinstance(nodes[i], EmptyNode):
                             binary_bitmap = binary_bitmap + "0"
                         else:
                             binary_bitmap = binary_bitmap + "1"
-                            sibling_hashes.insert(0, hashes[i])
+                            sibling_hashes.insert(0, nodes[i].hash)
                     i += 1
                 else:
-                    _hashes.append(hashes[i])
+                    _nodes.append(nodes[i])
                     _structure.append(structure[i])
                 i += 1
-            hashes = _hashes
+            nodes = _nodes
             structure = _structure
 
         if isinstance(current_node, EmptyNode):
-            bitmap = int(binary_bitmap, 2).to_bytes((len(binary_bitmap) + 7) // 8, "big")
-            return QueryWithProof(query_key, EMPTY_VALUE, bitmap, ancestor_hashes, sibling_hashes)
+            return QueryWithProof(query_key, EMPTY_VALUE, binary_to_bytes(binary_bitmap), ancestor_hashes, sibling_hashes)
 
         elif isinstance(current_node, LeafNode):
             ancestor_hashes.append(current_node.hash)
-            bitmap = int(binary_bitmap, 2).to_bytes((len(binary_bitmap) + 7) // 8, "big")
             return QueryWithProof(
                 current_node.key,
                 current_node.value,
-                bitmap,
+                binary_to_bytes(binary_bitmap),
                 ancestor_hashes,
                 sibling_hashes,
             )
@@ -471,13 +479,11 @@ class SkipMerkleTree(object):
             lower_subtree = await self.get_subtree(current_node.hash)
             lower_query_proof: QueryWithProof = await self._generate_query_proof(lower_subtree, query_key, height + query_height)
             # In the skip Merkle tree we have to handle hashes and bitmap from lower layers
-            bitmap = int(lower_query_proof.binary_bitmap + binary_bitmap, 2).to_bytes(
-                (len(lower_query_proof.binary_bitmap + binary_bitmap) + 7) // 8, "big"
-            )
+           
             return QueryWithProof(
                 lower_query_proof.key,
                 lower_query_proof.value,
-                bitmap,
+                binary_to_bytes(lower_query_proof.binary_bitmap + binary_bitmap),
                 ancestor_hashes + lower_query_proof.ancestor_hashes,
                 sibling_hashes + lower_query_proof.sibling_hashes,
             )
@@ -502,12 +508,14 @@ def insert_and_filter_queries(q: QueryWithProof or Query, queries: list[QueryWit
     return queries
 
 
-def verify(query_keys: list[bytes], proof: Proof, merkle_root: bytes) -> bool:
+def verify(query_keys: list[bytes], proof: Proof, merkle_root: bytes, key_length: int = DEFAULT_KEY_LENGTH) -> bool:
     if len(query_keys) != len(proof.queries):
         return False
 
     for key, query in zip(query_keys, proof.queries):
         # q is an inclusion proof for k or a default empty node
+        if len(key) != key_length:
+            return False
         if key == query.key:
             continue
 
@@ -563,3 +571,7 @@ def calculate_root(sibling_hashes: list[bytes], queries: list[Query]) -> bytes:
         sorted_queries = insert_and_filter_queries(q, sorted_queries)
 
     raise Exception("Can not calculate root hash")
+
+
+def is_inclusion_proof(query_key: bytes, query: Query) -> bool:
+    return query_key == query.key and query.value != EMPTY_VALUE

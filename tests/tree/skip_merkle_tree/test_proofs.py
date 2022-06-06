@@ -4,7 +4,7 @@ import json
 import asyncio
 import dingus.tree.skip_merkle_tree as skmt
 import dingus.tree.sparse_merkle_tree as smt
-from dingus.tree.skip_merkle_tree import verify
+from dingus.tree.skip_merkle_tree import is_inclusion_proof, verify
 from dingus.tree.types import Proof, Query
 
 
@@ -27,11 +27,13 @@ def get_cases() -> list[dict]:
 
 test_cases = get_cases()
 
-
 def test_skip_merkle_tree_fixtures(capsys):
     for case in test_cases:
         asyncio.run(skip_test(case, capsys))
 
+def test_skip_merkle_tree_inclusion_and_non_inclusion(capsys):
+    for case in test_cases:
+        asyncio.run(skip_random_test(case, capsys))
 
 async def skip_test(case, capsys):
     keys = case["keys"]
@@ -43,16 +45,14 @@ async def skip_test(case, capsys):
     _skmt = skmt.SkipMerkleTree()
 
     assert _skmt.root.hash == EMPTY_HASH
-    print("CASE:", len(keys))
     new_root = await _skmt.update(keys, values)
-
     assert _skmt.root.hash == root == new_root.hash
 
-    _smt = smt.SparseMerkleTree()
-    new_root = await _smt.update(keys, values)
-    assert _smt.root.hash == root == new_root.hash
+    # _smt = smt.SparseMerkleTree()
+    # new_root = await _smt.update(keys, values)
+    # assert _smt.root.hash == root == new_root.hash
     # assert _skmt.root.hash == _smt.root.hash
-    print(await _smt.print(_smt.root))
+    # print(await _smt.print(_smt.root))
 
     proof = await _skmt.generate_proof(query_keys)
 
@@ -63,20 +63,26 @@ async def skip_test(case, capsys):
         assert query.bitmap == fixture_query.bitmap
 
     assert proof.queries == fixture_proof.queries
-    # print("\nQUERYING: ", [k.hex()[:4] for k in query_keys])
-    # print("\nFIXTURE HASHES: ", [k.hex()[:4] for k in fixture_proof.sibling_hashes])
-    # print("\nSIBLING HASHES: ", [k.hex()[:4] for k in proof.sibling_hashes])
-    
     assert proof.sibling_hashes == fixture_proof.sibling_hashes
-
     assert verify(query_keys, proof, root)
 
-    random_queries = query_keys + [os.urandom(32) for _ in range(1)]
-    random_proof = await _skmt.generate_proof(random_queries)
-    print("QUERY KEYS:", [k.hex()[:4] for k in query_keys])
-    print("RANDOM QUERIES:", [k.hex()[:4] for k in random_queries])
-    print("RANDOM Proofs:", [q.key.hex()[:4] for q in random_proof.queries], [q.value.hex()[:4] for q in random_proof.queries], [q.binary_bitmap for q in random_proof.queries])
-    
-    assert verify(random_queries, random_proof, root)
 
-    
+async def skip_random_test(case, capsys):
+    keys = case["keys"]
+    values = case["values"]
+    root = case["root"]
+    query_keys = case["query_keys"]
+
+    _skmt = skmt.SkipMerkleTree()
+
+    assert _skmt.root.hash == EMPTY_HASH
+    new_root = await _skmt.update(keys, values)
+    assert _skmt.root.hash == root == new_root.hash
+    random_queries = query_keys + [os.urandom(32) for _ in range(1)]
+    random_proof = await _skmt.generate_proof(random_queries) 
+    assert verify(random_queries, random_proof, root)
+    for k, q in zip(random_queries, random_proof.queries):
+        if k in query_keys:
+            assert is_inclusion_proof(k, q) == True
+        else:
+            assert is_inclusion_proof(k, q) == False

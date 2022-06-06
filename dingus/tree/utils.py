@@ -51,6 +51,8 @@ def is_bit_set(bits: bytes, i: int) -> bool:
 def key_to_bin(key: bytes, idx: int) -> int:
     return key[idx]
 
+def binary_to_bytes(bstr: str) -> bytes:
+    return int(bstr, 2).to_bytes((len(bstr) + 7) // 8, "big")
 
 def binary_expansion(key: bytes):
     return f"{int.from_bytes(key, 'big'):0{8*len(key)}b}"
