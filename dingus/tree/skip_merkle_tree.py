@@ -4,7 +4,6 @@ import os.path
 
 from .hasher import TreeHasher, ECCHasher
 from .constants import (
-    BRANCH_PREFIX,
     DEFAULT_KEY_LENGTH,
     DEFAULT_SUBTREE_MAX_HEIGHT,
     DEFAULT_HASHER,
@@ -24,7 +23,6 @@ from .types import (
 )
 from .errors import *
 from .utils import binary_expansion, binary_search, is_bit_set, binary_to_bytes
-from dingus.utils import hash
 from dingus.db import InMemoryDB, RocksDB
 
 
@@ -400,7 +398,7 @@ class SkipMerkleTree(object):
                 raise InvalidKeyError
         elif self.subtree_height == 8:
             bin_idx = query_key[b]
-        print("\nCURRENT SUBTREE, ", height, current_subtree.structure, [n.__class__.__name__ for n in current_subtree.nodes])
+        print("\nCURRENT SUBTREE, ", height, current_subtree.structure)
         V = 0
         for i in range(len(current_subtree.nodes)):
             h = current_subtree.structure[i]
@@ -525,11 +523,16 @@ def verify(query_keys: list[bytes], proof: Proof, merkle_root: bytes, key_length
             # q does not give an non-inclusion proof for k
             return False
 
-    # Remove duplicate queries preserving order. This can happen if the same query is given for different query_keys.
+    
     filtered_queries = []
+    filter: dict[bytes, bool] = {}
     for q in proof.queries:
-        if q not in filtered_queries:
+        # Remove duplicate queries preserving order. This can happen if the same query is given for different query_keys, as for inclusion proofs or non-inclusion proofs pointing to a leaf node
+        if q.binary_path not in filter:
             filtered_queries.append(q)
+            filter[q.binary_path] = True
+        # Remove non-inclusion proofs pointing to the same empty node. This is more tricky since the query could be different (different queired keys which are not overwritten in the query)
+        # To do this, we check only empty
     return calculate_root(proof.sibling_hashes, filtered_queries) == merkle_root
 
 
@@ -559,13 +562,11 @@ def calculate_root(sibling_hashes: list[bytes], queries: list[Query]) -> bytes:
 
         d = q.binary_key[q.height - 1]
         if d == "0":
-            print("Hashing", q.hash.hex()[:4], sibling_hash.hex()[:4])
+            print(f"Hashing at h={len(q.binary_bitmap)}", q.hash.hex()[:4], sibling_hash.hex()[:4], " --> ", BranchNode(q.hash, sibling_hash).hash.hex()[:4])
             q.hash = BranchNode(q.hash, sibling_hash).hash
-            print("got", q.hash.hex()[:4])
         elif d == "1":
-            print("Hashing", sibling_hash.hex()[:4], q.hash.hex()[:4])
+            print(f"Hashing at h={len(q.binary_bitmap)}", sibling_hash.hex()[:4], q.hash.hex()[:4], " --> ", BranchNode(sibling_hash, q.hash).hash.hex()[:4])
             q.hash = BranchNode(sibling_hash, q.hash).hash
-            print("got", q.hash.hex()[:4])
 
         q.binary_bitmap = q.binary_bitmap[1:]
         sorted_queries = insert_and_filter_queries(q, sorted_queries)

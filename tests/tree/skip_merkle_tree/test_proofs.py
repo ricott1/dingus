@@ -5,7 +5,7 @@ import asyncio
 import dingus.tree.skip_merkle_tree as skmt
 import dingus.tree.sparse_merkle_tree as smt
 from dingus.tree.skip_merkle_tree import is_inclusion_proof, verify
-from dingus.tree.types import Proof, Query
+from dingus.tree.types import Proof, Query, SubTree
 
 
 def get_cases() -> list[dict]:
@@ -76,13 +76,26 @@ async def skip_random_test(case, capsys):
     _skmt = skmt.SkipMerkleTree()
 
     assert _skmt.root.hash == EMPTY_HASH
-    new_root = await _skmt.update(keys, values)
+    new_root: SubTree = await _skmt.update(keys, values)
     assert _skmt.root.hash == root == new_root.hash
-    random_queries = query_keys + [os.urandom(32) for _ in range(1)]
+
+
+    _smt = smt.SparseMerkleTree()
+    new_root = await _smt.update(keys, values)
+    assert _smt.root.hash == root == new_root.hash
+    assert _skmt.root.hash == _smt.root.hash
+    
+    random_queries = [os.urandom(32) for _ in range(32)] + query_keys
+    
     random_proof = await _skmt.generate_proof(random_queries) 
-    assert verify(random_queries, random_proof, root)
+    assert verify(random_queries, random_proof, _skmt.root.hash)
     for k, q in zip(random_queries, random_proof.queries):
         if k in query_keys:
             assert is_inclusion_proof(k, q) == True
         else:
             assert is_inclusion_proof(k, q) == False
+
+    del_root: SubTree = await _skmt.update([query_keys[0]], [b''])
+    delete_proof = await _skmt.generate_proof(random_queries) 
+    assert verify(random_queries, delete_proof, del_root.hash)
+    assert is_inclusion_proof(query_keys[0], delete_proof.queries[0]) == False
