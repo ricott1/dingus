@@ -527,12 +527,14 @@ def verify(query_keys: list[bytes], proof: Proof, merkle_root: bytes, key_length
     filtered_queries = []
     filter: dict[bytes, bool] = {}
     for q in proof.queries:
-        # Remove duplicate queries preserving order. This can happen if the same query is given for different query_keys, as for inclusion proofs or non-inclusion proofs pointing to a leaf node
+        # Remove duplicate queries preserving order. 
+        # This can happen if the same query is given for different query_keys, as for inclusion proofs or non-inclusion proofs pointing to a leaf node
+        # or for non-inclusion proofs pointing to the same empty node. 
+        # To do this, we check the binary path (key binary expansion up to the query height)
         if q.binary_path not in filter:
             filtered_queries.append(q)
             filter[q.binary_path] = True
-        # Remove non-inclusion proofs pointing to the same empty node. This is more tricky since the query could be different (different queired keys which are not overwritten in the query)
-        # To do this, we check only empty
+        
     return calculate_root(proof.sibling_hashes, filtered_queries) == merkle_root
 
 
