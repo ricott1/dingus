@@ -407,13 +407,15 @@ class SkipMerkleTree(object):
             if V <= bin_idx < V + incr:
                 break 
             V += incr
-
+        
+        max_id = 0
         for i in range(len(current_subtree.nodes)):
-            current_subtree.nodes[i].id = uuid.uuid1()
+            current_subtree.nodes[i].id = int(max_id)
+            max_id += 1
         
         
         query_height = int(h)
-        target_node = current_node
+        # target_node = current_node
         target_id = current_node.id
         
 
@@ -423,7 +425,6 @@ class SkipMerkleTree(object):
         nodes = list(current_subtree.nodes)
         structure = list(current_subtree.structure)
         binary_bitmap = ""
-        # target_node = current_node
 
         # Calculate ancestor and sibling hashes using the target_node as starting point
         # Recalculate internal hashes from the stored current_subtree.nodes, while apending to sibling_hashes the one needed in the queried path.
@@ -435,7 +436,8 @@ class SkipMerkleTree(object):
             while i < len(nodes):
                 if structure[i] == s:
                     parent_node = BranchNode(nodes[i].hash, nodes[i + 1].hash)
-                    parent_node.id = uuid.uuid1()
+                    parent_node.id = int(max_id)
+                    max_id += 1
                     _nodes.append(parent_node)
                     _structure.append(structure[i] - 1)
                     # check if the target node is the next

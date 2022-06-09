@@ -110,7 +110,7 @@ async def skip_random_non_inclusion_test(case, capsys):
 
 async def skip_random_test(case, capsys):
 
-    N = 1000
+    N = 200
     keys = [os.urandom(32) for _ in range(N)]
     values = [os.urandom(32) for _ in range(N)]
     
