@@ -1,6 +1,7 @@
 from itertools import accumulate
 from typing import Coroutine, Any
 import os.path
+import uuid
 
 from .hasher import TreeHasher, ECCHasher
 from .constants import (
@@ -398,7 +399,6 @@ class SkipMerkleTree(object):
                 raise InvalidKeyError
         elif self.subtree_height == 8:
             bin_idx = query_key[b]
-        print("\nCURRENT SUBTREE, ", height, current_subtree.structure)
         V = 0
         for i in range(len(current_subtree.nodes)):
             h = current_subtree.structure[i]
@@ -408,17 +408,22 @@ class SkipMerkleTree(object):
                 break 
             V += incr
 
+        for i in range(len(current_subtree.nodes)):
+            current_subtree.nodes[i].id = uuid.uuid1()
         
         
+        query_height = int(h)
+        target_node = current_node
+        target_id = current_node.id
+        
+
         ancestor_hashes = []
         sibling_hashes = []
 
         nodes = list(current_subtree.nodes)
         structure = list(current_subtree.structure)
         binary_bitmap = ""
-        
-        query_height = int(h)
-        target_node = current_node
+        # target_node = current_node
 
         # Calculate ancestor and sibling hashes using the target_node as starting point
         # Recalculate internal hashes from the stored current_subtree.nodes, while apending to sibling_hashes the one needed in the queried path.
@@ -430,22 +435,26 @@ class SkipMerkleTree(object):
             while i < len(nodes):
                 if structure[i] == s:
                     parent_node = BranchNode(nodes[i].hash, nodes[i + 1].hash)
+                    parent_node.id = uuid.uuid1()
                     _nodes.append(parent_node)
                     _structure.append(structure[i] - 1)
                     # check if the target node is the next
                     # 'is' operator checks equality of pointers
-                    if target_node is nodes[i]:
+                    # if target_node is nodes[i]:
+                    if target_id == nodes[i].id:
                         ancestor_hashes.insert(0, parent_node.hash)
-                        target_node = parent_node
+                        target_id = parent_node.id
                         if isinstance(nodes[i + 1], EmptyNode):
                             binary_bitmap = binary_bitmap + "0"
                         else:
                             binary_bitmap = binary_bitmap + "1"
                             sibling_hashes.insert(0, nodes[i + 1].hash)
                     # 'is' operator checks equality of pointers
-                    elif target_node is nodes[i + 1]:
+                    # elif target_node is nodes[i + 1]:
+                    if target_id == nodes[i+1].id:
+                    # elif (target_node and target_node.hash == nodes[i+1].hash) or (target_node == None and target_node_idx == i+1):
                         ancestor_hashes.insert(0, parent_node.hash)
-                        target_node = parent_node
+                        target_id = parent_node.id
                         if isinstance(nodes[i], EmptyNode):
                             binary_bitmap = binary_bitmap + "0"
                         else:
