@@ -1,4 +1,5 @@
 import os
+import random
 from dingus.tree.constants import EMPTY_HASH
 import json
 import asyncio
@@ -30,6 +31,10 @@ test_cases = get_cases()
 def test_skip_merkle_tree_fixtures(capsys):
     for case in test_cases:
         asyncio.run(skip_test(case, capsys))
+
+def test_skip_merkle_tree_non_inclusion(capsys):
+    for case in test_cases:
+        asyncio.run(skip_random_non_inclusion_test(case, capsys))
 
 def test_skip_merkle_tree_inclusion_and_non_inclusion(capsys):
     for case in test_cases:
@@ -67,7 +72,7 @@ async def skip_test(case, capsys):
     assert verify(query_keys, proof, root)
 
 
-async def skip_random_test(case, capsys):
+async def skip_random_non_inclusion_test(case, capsys):
     keys = case["keys"]
     values = case["values"]
     root = case["root"]
@@ -85,9 +90,11 @@ async def skip_random_test(case, capsys):
     assert _smt.root.hash == root == new_root.hash
     assert _skmt.root.hash == _smt.root.hash
     
-    random_queries = [os.urandom(32) for _ in range(32)] + query_keys
+    random_queries = [os.urandom(32) for _ in range(64)] + query_keys
     
-    random_proof = await _skmt.generate_proof(random_queries) 
+    random_proof = await _skmt.generate_proof(random_queries)
+    # wrong_queries = [Query(q.key, q.value, q.bitmap + b"\x00") for q in random_proof.queries]
+    # random_proof_wrong = Proof(random_proof.sibling_hashes, wrong_queries) 
     assert verify(random_queries, random_proof, _skmt.root.hash)
     for k, q in zip(random_queries, random_proof.queries):
         if k in query_keys:
@@ -98,4 +105,33 @@ async def skip_random_test(case, capsys):
     del_root: SubTree = await _skmt.update([query_keys[0]], [b''])
     delete_proof = await _skmt.generate_proof(random_queries) 
     assert verify(random_queries, delete_proof, del_root.hash)
+    assert is_inclusion_proof(query_keys[0], delete_proof.queries[0]) == False
+
+
+async def skip_random_test(case, capsys):
+
+    N = 1000
+    keys = [os.urandom(32) for _ in range(N)]
+    values = [os.urandom(32) for _ in range(N)]
+    
+    query_keys = random.sample(keys, N//6)
+    non_included_keys = [os.urandom(32) for _ in range(N//6)]
+
+    _skmt = skmt.SkipMerkleTree()
+
+    assert _skmt.root.hash == EMPTY_HASH
+    new_root: SubTree = await _skmt.update(keys, values)
+    
+    proof = await _skmt.generate_proof(query_keys + non_included_keys)
+
+    assert verify(query_keys + non_included_keys, proof, _skmt.root.hash)
+    for k, q in zip(query_keys + non_included_keys, proof.queries):
+        if k in query_keys:
+            assert is_inclusion_proof(k, q) == True
+        else:
+            assert is_inclusion_proof(k, q) == False
+
+    del_root: SubTree = await _skmt.update([query_keys[0]], [b''])
+    delete_proof = await _skmt.generate_proof(query_keys + non_included_keys) 
+    assert verify(query_keys + non_included_keys, delete_proof, del_root.hash)
     assert is_inclusion_proof(query_keys[0], delete_proof.queries[0]) == False

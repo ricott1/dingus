@@ -488,20 +488,21 @@ class SkipMerkleTree(object):
 
 
 def insert_and_filter_queries(q: QueryWithProof or Query, queries: list[QueryWithProof or Query]) -> list[QueryWithProof or Query]:
-    if len(queries) > 0:
-        insert_index = binary_search(
-            queries,
-            lambda p: (q.height == p.height and q.key < p.key) or (q.height > p.height),
-        )
+    if len(queries) == 0:
+        return [q]
 
-        if insert_index == len(queries):
-            queries.append(q)
-        else:
-            p = queries[insert_index]
-            if not p.binary_path.endswith(q.binary_path, p.height):
-                queries.insert(insert_index, q)
-    else:
-        queries.append(q)
+    insert_index = binary_search(
+        queries,
+        lambda p: (q.height == p.height and q.key < p.key) or (q.height > p.height),
+    )
+
+    if insert_index == len(queries):
+        return queries + [q]
+    
+    p = queries[insert_index]
+    # if not p.binary_path.endswith(q.binary_path, p.height):
+    if p.binary_path != q.binary_path:
+        queries.insert(insert_index, q)
 
     return queries
 
