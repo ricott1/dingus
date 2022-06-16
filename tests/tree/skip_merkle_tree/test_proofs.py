@@ -53,11 +53,11 @@ async def skip_test(case, capsys):
     new_root = await _skmt.update(keys, values)
     assert _skmt.root.hash == root == new_root.hash
 
-    # _smt = smt.SparseMerkleTree()
-    # new_root = await _smt.update(keys, values)
-    # assert _smt.root.hash == root == new_root.hash
-    # assert _skmt.root.hash == _smt.root.hash
-    # print(await _smt.print(_smt.root))
+    _smt = smt.SparseMerkleTree()
+    new_root = await _smt.update(keys, values)
+    assert _smt.root.hash == root == new_root.hash
+    assert _skmt.root.hash == _smt.root.hash
+    
 
     proof = await _skmt.generate_proof(query_keys)
 
@@ -114,8 +114,8 @@ async def skip_random_test(case, capsys):
     keys = [os.urandom(32) for _ in range(N)]
     values = [os.urandom(32) for _ in range(N)]
     
-    query_keys = random.sample(keys, N//6)
-    non_included_keys = [os.urandom(32) for _ in range(N//6)]
+    query_keys = random.sample(keys, 12)
+    non_included_keys = [os.urandom(32) for _ in range(12)]
 
     _skmt = skmt.SkipMerkleTree()
 

@@ -364,6 +364,7 @@ class SkipMerkleTree(object):
             return Proof([], [])
 
         query_proofs: list[QueryWithProof] = [await self._generate_query_proof(self.root, k, 0) for k in query_keys]
+        
         # prepare queries from single proofs, maintaining original order (same as query keys)
         queries: list[Query] = [Query(sp.key, sp.value, sp.bitmap) for sp in query_proofs]
         # sort by largest height (bottom first), smaller key (left first)
@@ -418,7 +419,6 @@ class SkipMerkleTree(object):
         # target_node = current_node
         target_id = current_node.id
         
-
         ancestor_hashes = []
         sibling_hashes = []
 
