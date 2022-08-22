@@ -50,7 +50,10 @@ def get_accounts_from_files() -> dict[str : account.Account]:
     accounts = {}
     account_files = os.listdir(f"{os.environ['BASE_PATH']}/accounts")
     for filename in account_files:
-        act = account.Account.from_file(filename)
+        try:
+            act = account.Account.from_file(filename)
+        except:
+            continue
 
         if not act:
             continue

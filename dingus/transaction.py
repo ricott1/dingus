@@ -5,7 +5,7 @@ import dingus.codec as codec
 import dingus.utils as utils
 import dingus.network.api as api
 from dingus.constants import (
-    LSK,
+    SIGNATURE_TAG_TRANSACTION,
     ADDRESS_LENGTH,
     BALANCE_TRANSFER_MAX_DATA_LENGTH,
     EDSA_SIGNATURE_LENGTH,
@@ -37,7 +37,7 @@ class Transaction(object):
                 self.schema.signatures.extend([signature])
 
         self.asset = module_asset_to_schema[
-            f"{params['moduleID']}:{params['commandID']}"
+            f"{params['module']}/{params['command']}"
         ].from_dict(params["asset"])
         self.schema.asset = self.asset.bytes
         self.unsigned_bytes = self.schema.SerializeToString()
@@ -53,11 +53,11 @@ class Transaction(object):
 
     @classmethod
     def validate_parameters(cls, params: dict) -> None:
-        assert "moduleID" in params, "Missing 'moduleID' parameter."
+        assert "module" in params, "Missing 'module' parameter."
         assert (
-            f"{params['moduleID']}:{params['commandID']}" in module_asset_to_schema
-        ), "Invalid 'moduleID:commandID' combination."
-        assert "commandID" in params, "Missing 'commandID' parameter."
+            f"{params['module']}/{params['command']}" in module_asset_to_schema
+        ), "Invalid 'module/command' combination."
+        assert "command" in params, "Missing 'command' parameter."
         assert "senderPublicKey" in params, "Missing 'senderPublicKey' parameter."
         assert (
             len(params["senderPublicKey"]) == EDSA_PUBLIC_KEY_LENGTH
@@ -74,12 +74,12 @@ class Transaction(object):
         return Transaction(params)
 
     @property
-    def moduleID(self) -> bytes:
-        return self.schema.moduleID
+    def module(self) -> bytes:
+        return self.schema.module
 
     @property
-    def commandID(self) -> bytes:
-        return self.schema.commandID
+    def command(self) -> bytes:
+        return self.schema.command
 
     @property
     def senderPublicKey(self) -> bytes:
@@ -104,7 +104,7 @@ class Transaction(object):
     @property
     def to_dict(self) -> dict:
         base_tx = MessageToDict(self.schema)
-        base_tx["asset"] = MessageToDict(self.schema)
+        base_tx["asset"] = MessageToDict(self.asset.schema)
         return base_tx
 
     @property
@@ -116,16 +116,16 @@ class Transaction(object):
         return len(self.schema.signatures) > 0
 
     def sign(self, sk: SigningKey) -> None:
-        if len(self.signatures) != 0:
-            logging.warn("Transaction already signed.")
-            return
+        # if len(self.signatures) != 0:
+        #     logging.warn("Transaction already signed.")
+        #     return
 
         if "NETWORK_ID" not in os.environ:
             logging.warning("Cannot sign transaction, network ID not set.")
             return
 
         net_id = bytes.fromhex(os.environ["NETWORK_ID"])
-        signature = utils.sign(net_id + self.unsigned_bytes, sk)
+        signature = utils.sign(utils.hash(SIGNATURE_TAG_TRANSACTION + net_id + self.unsigned_bytes), sk)
         self.schema.signatures.extend([signature])
 
     def send(self) -> dict:
@@ -186,4 +186,4 @@ class BalanceTransferAsset(Asset):
         return self.schema.data
 
 
-module_asset_to_schema = {"2:0": BalanceTransferAsset}
+module_asset_to_schema = {"token/transfer": BalanceTransferAsset}

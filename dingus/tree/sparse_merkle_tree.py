@@ -314,3 +314,4 @@ class SparseMerkleTree(object):
 
         self.root = bottom_node
         return bottom_node
+

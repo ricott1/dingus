@@ -55,6 +55,7 @@ async def skip_test(case, capsys):
     assert proof.queries == fixture_proof.queries
     assert proof.sibling_hashes == fixture_proof.sibling_hashes
     assert verify(query_keys, proof, root)
+
     for k, q in zip(query_keys, proof.queries):
         if k in keys and not k in delete_keys:
             assert is_inclusion_proof(k, q) == True
@@ -64,12 +65,17 @@ async def skip_test(case, capsys):
     # Delete first 25% of query key
     extra_delete_keys = query_keys[:len(query_keys)//4]
     extra_root = await _skmt.update(extra_delete_keys, [b"" for _ in extra_delete_keys])
-    extra_proof = await _skmt.generate_proof(extra_delete_keys)
-    assert verify(extra_delete_keys, extra_proof, extra_root.hash)
+
+    # Now recreate proof
+    extra_proof = await _skmt.generate_proof(query_keys)
+    assert verify(query_keys, extra_proof, extra_root.hash)
+    print([s.hex() for s in extra_proof.sibling_hashes])
     for k, q in zip(query_keys, extra_proof.queries):
-        if k in extra_delete_keys:
-            assert is_inclusion_proof(k, q) == False
-        elif k in keys and not k in extra_delete_keys:
+        if (k in keys) and not (k in extra_delete_keys + delete_keys):
             assert is_inclusion_proof(k, q) == True
         else:
             assert is_inclusion_proof(k, q) == False
+
+    print([(q.key.hex(), q.value.hex(), q.bitmap.hex()) for q in extra_proof.queries])
+    
+    assert 0

@@ -576,10 +576,10 @@ def calculate_root(sibling_hashes: list[bytes], queries: list[Query]) -> bytes:
 
         d = q.binary_key[q.height - 1]
         if d == "0":
-            print(f"Hashing at h={len(q.binary_bitmap)}", q.hash.hex()[:4], sibling_hash.hex()[:4], " --> ", BranchNode(q.hash, sibling_hash).hash.hex()[:4])
+            # print(f"Hashing at h={len(q.binary_bitmap)}", q.hash.hex()[:4], sibling_hash.hex()[:4], " --> ", BranchNode(q.hash, sibling_hash).hash.hex()[:4])
             q.hash = BranchNode(q.hash, sibling_hash).hash
         elif d == "1":
-            print(f"Hashing at h={len(q.binary_bitmap)}", sibling_hash.hex()[:4], q.hash.hex()[:4], " --> ", BranchNode(sibling_hash, q.hash).hash.hex()[:4])
+            # print(f"Hashing at h={len(q.binary_bitmap)}", sibling_hash.hex()[:4], q.hash.hex()[:4], " --> ", BranchNode(sibling_hash, q.hash).hash.hex()[:4])
             q.hash = BranchNode(sibling_hash, q.hash).hash
 
         q.binary_bitmap = q.binary_bitmap[1:]

@@ -15,3 +15,5 @@ EVENT_TAGS = ["user_input", "service_subscription", "api_response"]
 
 BALANCE_TRANSFER_LENGTH = 150
 BALANCE_TRANSFER_MAX_DATA_LENGTH = 64
+
+SIGNATURE_TAG_TRANSACTION = "LSK_TX_".encode('ascii')
