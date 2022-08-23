@@ -6,6 +6,6 @@ message Transaction {
     required uint64 nonce = 3;
     required uint64 fee = 4;
     required bytes senderPublicKey = 5;
-    required bytes asset = 6;
+    required bytes params = 6;
     repeated bytes signatures = 7;
   }

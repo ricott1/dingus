@@ -45,7 +45,7 @@ def start():
     Path(f"{os.environ['BASE_PATH']}/accounts").mkdir(parents=True, exist_ok=True)
     Path(f"{os.environ['BASE_PATH']}/database").mkdir(parents=True, exist_ok=True)
 
-    os.environ["NETWORK_ID"] = ""
+    os.environ["CHAIN_ID"] = ""
     os.environ["BLOCK_TIME"] = "10"
     os.environ["MIN_FEE_PER_BYTE"] = "0"
 

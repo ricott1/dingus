@@ -23,6 +23,8 @@ from blspy import (
     PrivateKey,
 )
 
+from dingus.utils import signBLS, verifyBLS
+
 def test_lip38():
     # sk = 0x0000000000000000000000000000000000000000000000000000000000000000
     # message = 0xabababababababababababababababababababababababababababababababab
@@ -31,12 +33,46 @@ def test_lip38():
     sk = PrivateKey.from_bytes(bytes.fromhex("0000000000000000000000000000000000000000000000000000000000000000"))
     pk = sk.get_g1()
     assert pk == G1Element.from_bytes(bytes(pk))
-
-    sig = BasicSchemeMPL.sign(sk, msg)
-    print("sig", sig)
+    sig = PopSchemeMPL.sign(sk, msg)
     assert sig == G2Element.from_bytes(bytes(sig))
-    assert BasicSchemeMPL.verify(pk, msg, sig)
+    assert PopSchemeMPL.verify(pk, msg, sig)
     assert bytes(sig) == bytes.fromhex("c00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000")
+
+
+    # sk = 0x263dbd792f5b1be47ed85f8938c0f29586af0d3ac7b977f21c278fe1462040e3
+    # tag = 0x4c534b5f54585f # ASCII-encoding of "LSK_TX_"
+    # chainID = 0x9ee11e9df416b18bf69dbd1a920442e08c6ca319e69926bc843a561782ca17ee
+    # message = 0xbeaf
+    # signBLS(sk, tag, chainID, message) = 0xa6f889695b4ee393c6ede6af2215019cf9d7e004781b98ea12d6b227212126687ecde1c2a08e38e2d5c18eab2881879102e91ac5f0e9813126d6d68262af149ba6c25ffb88e6688fec49b5199cec863c0eb54110fdb6d92c6570f3ca9c1910b9
+    msg = bytes.fromhex("beaf")
+    tag = b"LSK_TX_"
+    sk = PrivateKey.from_bytes(bytes.fromhex("263dbd792f5b1be47ed85f8938c0f29586af0d3ac7b977f21c278fe1462040e3"))
+    pk = sk.get_g1()
+    chainID = bytes.fromhex("9ee11e9df416b18bf69dbd1a920442e08c6ca319e69926bc843a561782ca17ee")
+    assert pk == G1Element.from_bytes(bytes(pk))
+    sig = signBLS(sk, tag, chainID, msg)
+    assert sig == G2Element.from_bytes(bytes(sig))
+    assert verifyBLS(pk, tag, chainID, msg, sig)
+    assert bytes(sig) == bytes.fromhex("b34d13b21f5064ed845ef674f5308748d34a640511b479bd5d3374548e69005e3e7f4fbdd2e7292a409fde45bcccf14c0de9ff0eba62e41bdbb329c7deb8a0ec6e1a732588f1db994a46e545e52a0d2558e6229663c07a7db9ea5589b861ae16")
+
+
+    # sk = 0x263dbd792f5b1be47ed85f8938c0f29586af0d3ac7b977f21c278fe1462040e3
+    # tag = 0x4c534b5f54585f # ASCII-encoding of "LSK_TX_"
+    # chainID = 0x00000000
+    # message = 0xbeaf
+    # signBLS(sk, tag, chainID, message) = 0xa6f889695b4ee393c6ede6af2215019cf9d7e004781b98ea12d6b227212126687ecde1c2a08e38e2d5c18eab2881879102e91ac5f0e9813126d6d68262af149ba6c25ffb88e6688fec49b5199cec863c0eb54110fdb6d92c6570f3ca9c1910b9
+    msg = bytes.fromhex("beaf")
+    tag = b"LSK_TX_"
+    sk = PrivateKey.from_bytes(bytes.fromhex("263dbd792f5b1be47ed85f8938c0f29586af0d3ac7b977f21c278fe1462040e3"))
+    pk = sk.get_g1()
+    chainID = bytes.fromhex("00000000")
+    assert pk == G1Element.from_bytes(bytes(pk))
+    assert bytes(pk) == bytes.fromhex("a491d1b0ecd9bb917989f0e74f0dea0422eac4a873e5e2644f368dffb9a6e20fd6e10c1b77654d067c0618f6e5a7f79a")
+    sig = signBLS(sk, tag, chainID, msg)
+    assert sig == G2Element.from_bytes(bytes(sig))
+    assert verifyBLS(pk, tag, chainID, msg, sig)
+    print(bytes(sig).hex())
+    assert bytes(sig) == bytes.fromhex("80c3da661b5bb80bb841367255f7b087b969c075661895b7ac8b74b72360be54693b3485eff7d816924517a21ef1c3a30a8f9402572d5a63a7ff2f71ca6929a8c3d7f75fd72edd1aa478ecc09966a133e829600f0111a1e40bbe35db61e8c689")
 
 def test_schemes():
     # fmt: off

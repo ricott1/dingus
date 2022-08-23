@@ -4,6 +4,14 @@ import os
 import pyperclip
 from pathlib import Path
 
+from blspy import (
+    BasicSchemeMPL,
+    G1Element,
+    G2Element,
+    PopSchemeMPL,
+    PrivateKey,
+)
+
 import dingus.types.keys as keys
 import dingus.types.account as account
 from dingus.constants import (
@@ -28,6 +36,19 @@ def hash(msg: bytes) -> bytes:
 def sign(msg: bytes, sk: keys.PrivateKey) -> bytes:
     return sk.sign(msg).signature
 
+def tagMessage(tag: bytes, chainID: bytes, message: bytes) -> bytes:
+    return tag + chainID + message
+
+
+def signBLS(sk: PrivateKey, tag: bytes, chainID: bytes, message: bytes) -> G2Element:
+    taggedMessage = tagMessage(tag, chainID, message)
+    sig = PopSchemeMPL.sign(sk, hash(taggedMessage))
+    assert sig == G2Element.from_bytes(bytes(sig))
+    return sig
+
+def verifyBLS(pk: G1Element, tag: bytes, chainID: bytes, message: bytes, sig: G2Element) -> bool:
+    taggedMessage = tagMessage(tag, chainID, message)
+    return PopSchemeMPL.verify(pk, hash(taggedMessage), sig)
 
 def random_address() -> keys.Address:
     return keys.Address(os.urandom(ADDRESS_LENGTH))

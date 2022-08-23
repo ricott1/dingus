@@ -14,7 +14,7 @@ class DingusClient(component.ComponentMixin):
         status = api.network_status()
         if "data" in status:
             self.emit_event("network_status_update", status, ["api_response"])
-            os.environ["NETWORK_ID"] = status["data"]["networkIdentifier"]
+            os.environ["CHAIN_ID"] = status["data"]["networkIdentifier"]
             os.environ["BLOCK_TIME"] = str(status["data"]["blockTime"])
             self.last_update_time = status["meta"]["lastUpdate"]
 

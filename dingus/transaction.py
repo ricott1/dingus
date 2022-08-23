@@ -22,8 +22,8 @@ class Transaction(object):
     def __init__(self, params: dict) -> None:
         self.schema = codec.transaction.Transaction()
         for k, v in params.items():
-            # asset is handled separately
-            if k == "asset":
+            # paramsis handled separately
+            if k == "params":
                 continue
 
             # signatures cannot be set directly
@@ -36,10 +36,10 @@ class Transaction(object):
             for signature in params["signatures"]:
                 self.schema.signatures.extend([signature])
 
-        self.asset = module_asset_to_schema[
+        self.params= module_params_to_schema[
             f"{params['module']}/{params['command']}"
-        ].from_dict(params["asset"])
-        self.schema.asset = self.asset.bytes
+        ].from_dict(params["params"])
+        self.schema.params= self.params.bytes
         self.unsigned_bytes = self.schema.SerializeToString()
 
         if "MIN_FEE_PER_BYTE" in os.environ:
@@ -47,7 +47,7 @@ class Transaction(object):
         else:
             min_fee_per_byte = 0
 
-        assert self.fee >= self.asset.base_fee + min_fee_per_byte * (
+        assert self.fee >= self.params.base_fee + min_fee_per_byte * (
             len(self.unsigned_bytes) + EDSA_SIGNATURE_LENGTH
         ), "Invalid 'fee'."
 
@@ -55,7 +55,7 @@ class Transaction(object):
     def validate_parameters(cls, params: dict) -> None:
         assert "module" in params, "Missing 'module' parameter."
         assert (
-            f"{params['module']}/{params['command']}" in module_asset_to_schema
+            f"{params['module']}/{params['command']}" in module_params_to_schema
         ), "Invalid 'module/command' combination."
         assert "command" in params, "Missing 'command' parameter."
         assert "senderPublicKey" in params, "Missing 'senderPublicKey' parameter."
@@ -66,7 +66,7 @@ class Transaction(object):
         assert params["nonce"] >= 0, "Invalid 'nonce'."
         assert "fee" in params, "Missing 'fee' parameter."
         assert params["fee"] >= 0, "Invalid 'fee'."
-        assert "asset" in params, "Missing 'asset' parameter."
+        assert "params" in params, "Missing 'params' parameter."
 
     @classmethod
     def from_dict(cls, params: dict) -> Transaction:
@@ -104,7 +104,7 @@ class Transaction(object):
     @property
     def to_dict(self) -> dict:
         base_tx = MessageToDict(self.schema)
-        base_tx["asset"] = MessageToDict(self.asset.schema)
+        base_tx["params"] = MessageToDict(self.params.schema)
         return base_tx
 
     @property
@@ -120,11 +120,11 @@ class Transaction(object):
         #     logging.warn("Transaction already signed.")
         #     return
 
-        if "NETWORK_ID" not in os.environ:
+        if "CHAIN_ID" not in os.environ:
             logging.warning("Cannot sign transaction, network ID not set.")
             return
 
-        net_id = bytes.fromhex(os.environ["NETWORK_ID"])
+        net_id = bytes.fromhex(os.environ["CHAIN_ID"])
         signature = utils.sign(utils.hash(SIGNATURE_TAG_TRANSACTION + net_id + self.unsigned_bytes), sk)
         self.schema.signatures.extend([signature])
 
@@ -151,27 +151,27 @@ class Asset(object):
         return self.schema.SerializeToString()
 
 
-class BalanceTransferAsset(Asset):
+class BalanceTransferParams(Asset):
     def __init__(self, params: dict = {}) -> None:
-        self.schema = codec.token_balance_transfer_asset.BalanceTransferAsset()
+        self.schema = codec.token_balance_transfer_params.BalanceTransferParams()
         self.base_fee = 0
         for k, v in params.items():
             setattr(self.schema, k, v)
 
     @classmethod
     def validate_parameters(cls, params: dict) -> None:
-        assert "amount" in params, "Missing 'amount' asset parameter."
-        assert params["amount"] > 0, "Invalid 'amount' asset parameter."
+        assert "amount" in params, "Missing 'amount' paramsproperty."
+        assert params["amount"] > 0, "Invalid 'amount' params property."
         assert (
             "recipientAddress" in params
-        ), "Missing 'recipientAddress' asset parameter."
+        ), "Missing 'recipientAddress' params property."
         assert (
             len(params["recipientAddress"]) == ADDRESS_LENGTH
-        ), "Invalid 'recipientAddress' asset parameter."
-        assert "data" in params, "Missing 'data' asset parameter."
+        ), "Invalid 'recipientAddress' params property."
+        assert "data" in params, "Missing 'data' params property."
         assert (
             len(params["data"]) < BALANCE_TRANSFER_MAX_DATA_LENGTH
-        ), f"'data' asset parameter exceeds maximum length ({len(params['data'])} > {BALANCE_TRANSFER_MAX_DATA_LENGTH})."
+        ), f"'data' params property exceeds maximum length ({len(params['data'])} > {BALANCE_TRANSFER_MAX_DATA_LENGTH})."
 
     @property
     def amount(self) -> int:
@@ -186,4 +186,4 @@ class BalanceTransferAsset(Asset):
         return self.schema.data
 
 
-module_asset_to_schema = {"token/transfer": BalanceTransferAsset}
+module_params_to_schema = {"token/transfer": BalanceTransferParams}

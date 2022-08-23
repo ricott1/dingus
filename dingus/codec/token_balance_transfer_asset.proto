@@ -1,7 +1,0 @@
-syntax = "proto2";
-
-message BalanceTransferAsset {
-    optional uint64 amount =  1;
-    optional bytes recipientAddress = 2;
-    optional string data = 3;
-}

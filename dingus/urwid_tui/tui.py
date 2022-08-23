@@ -644,7 +644,7 @@ class AccountInfo(urwid.Pile):
             "senderPublicKey": self.active_account.public_key.hexbytes(),
             "nonce": self.active_account.nonce,
             "fee": int(fee * LSK),
-            "asset": {
+            "params": {
                 "amount": int(amount * LSK),
                 "recipientAddress": utils.get_address_from_lisk32_address(
                     params["recipientAddress"]

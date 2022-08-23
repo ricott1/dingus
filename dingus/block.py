@@ -20,7 +20,7 @@ class Block(object):
         else:
             min_fee_per_byte = 0
 
-        assert self.fee >= self.asset.base_fee + min_fee_per_byte * (
+        assert self.fee >= self.params.base_fee + min_fee_per_byte * (
             len(self.unsigned_bytes) + EDSA_SIGNATURE_LENGTH
         ), "Invalid 'fee'."
 
@@ -28,7 +28,7 @@ class Block(object):
     def validate_parameters(cls, params: dict) -> None:
         assert "moduleID" in params, "Missing 'moduleID' parameter."
         assert (
-            f"{params['moduleID']}:{params['commandID']}" in module_asset_to_schema
+            f"{params['moduleID']}:{params['commandID']}" in module_params_to_schema
         ), "Invalid 'moduleID:commandID' combination."
         assert "commandID" in params, "Missing 'commandID' parameter."
         assert "senderPublicKey" in params, "Missing 'senderPublicKey' parameter."
@@ -93,11 +93,11 @@ class Block(object):
             logging.warn("Transaction already signed.")
             return
 
-        if "NETWORK_ID" not in os.environ:
+        if "CHAIN_ID" not in os.environ:
             logging.warning("Cannot sign transaction, network ID not set.")
             return
 
-        net_id = bytes.fromhex(os.environ["NETWORK_ID"])
+        net_id = bytes.fromhex(os.environ["CHAIN_ID"])
         signature = utils.sign(net_id + self.unsigned_bytes, sk)
         self.schema.signatures.extend([signature])
 
