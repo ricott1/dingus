@@ -247,7 +247,7 @@ def rpc_post_trs(trs_bytes: str | bytes) -> dict:
 def test_send_transaction():
     os.environ[
         "CHAIN_ID"
-    ] = "00000123"
+    ] = "00000000"
     os.environ[
         "NETWORK"
     ] = "devnet"
@@ -256,10 +256,10 @@ def test_send_transaction():
         "module": "token",
         "command": "transfer",
         "senderPublicKey": bytes.fromhex("43e59548e356f581251041dc922b8e27b7bc5fd37b33e7939422db82e29c9d73"),
-        "nonce": 0,
+        "nonce": 5,
         "fee": 1216299416,
         "params": {
-            "tokenID": bytes.fromhex("0000012300000000"),
+            "tokenID": bytes.fromhex("0000000000000000"),
             "amount": 123986407700,
             "recipientAddress": bytes.fromhex("2ca4b4e9924547c48c04300b320be84e8cd81e4a"),
             "data": "Odi et amo. Quare id faciam, fortasse requiris."
@@ -267,19 +267,22 @@ def test_send_transaction():
     }
 
     trs = Transaction.from_dict(params)
-
     sk1 = PrivateKey(bytes.fromhex("4cf6720801a87c4f9a4f8269671bff116d9af98734cae22315155d357f8b8510"))
-
+    sk2 = PrivateKey(bytes.fromhex("c6bb32474a51daf65478204cb7cb554e7dbb7f7d44def985db56c925fd3f0859"))
     # print("unsigned trs:", trs.bytes.hex())
+    # "private_key": "c6bb32474a51daf65478204cb7cb554e7dbb7f7d44def985db56c925fd3f0859", "public_key": "5f40d1f7a4e57ff921f5b06788877e85070f1f7bc382d293a43b79935048aed3"
+    # "private_key": "4cf6720801a87c4f9a4f8269671bff116d9af98734cae22315155d357f8b8510", "public_key": "43e59548e356f581251041dc922b8e27b7bc5fd37b33e7939422db82e29c9d73"
     assert trs.bytes == trs.unsigned_bytes
+    print("unsigned bytes:",trs.bytes.hex())
     trs.sign(sk1)
+    trs.sign(sk2)
     print("signed trs:",trs)
-    print("bytes:",trs.bytes.hex())
-    print(trs.id.hex())
+    print("signed bytes:",trs.bytes.hex())
+    print("ID", trs.id.hex())
 
-    ret = rpc_post_trs(trs.bytes.hex())
+    # ret = rpc_post_trs(trs.bytes.hex())
 
-    print(ret)
+    # print(ret)
 
 def get_validators_keys_from_file():
     validators_data = json.loads(open("./dev-validators.json", "r").read())
@@ -288,7 +291,7 @@ def get_validators_keys_from_file():
     print(validator_keys)
 
 if __name__ == "__main__":
-    test_register_mainchain_transaction()
+    test_send_transaction()
 
 
 #\"params\": { \"transaction\": \"0a036c6e731208726567697374657218002080cab5ee012a200c4862e7a9e80699b0d997a16336563fad3957bed28b09f7f8ed645827af0f9c320e0a07626c612e6c736b10d83618023a40006ab73f5ed3dd0f5008575525154f22226cec78d86b57ddd0b83af7a7d386ea6db581afd7f536e325a231bcf910d622253b3c3b5bd89f6df5f46eb51285af05\" }\n}",
