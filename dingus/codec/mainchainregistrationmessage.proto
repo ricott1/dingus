@@ -1,0 +1,15 @@
+
+syntax = "proto2";
+message MainchainRegistrationMessage {
+    required bytes ownChainID = 1;
+    required string ownName = 2;
+    repeated MainchainRegistrationMessage_MainchainValidators mainchainValidators = 3;
+    required uint64 mainchainCertificateThreshold = 4;
+    
+}
+
+message MainchainRegistrationMessage_MainchainValidators {
+    required bytes blsKey = 1;
+    required uint64 bftWeight = 2;
+    
+}

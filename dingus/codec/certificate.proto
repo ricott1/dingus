@@ -1,0 +1,15 @@
+
+syntax = "proto2";
+message Certificate {
+    
+    required bytes ownChainID = 1;
+    required string ownName = 2;
+    repeated Certificate_MainchainValidators mainchainValidators = 3;
+    required uint64 mainchainCertificateThreshold = 4;
+}
+
+message Certificate_MainchainValidators {
+    
+    required bytes blsKey = 1;
+    required uint64 bftWeight = 2;
+}
