@@ -16,7 +16,7 @@ def start():
         type=str,
         nargs=1,
         default=["testnet"],
-        choices=["mainnet", "testnet"],
+        choices=["mainnet", "testnet", "devnet"],
         help="network connection: (choose from 'mainnet', 'testnet')",
     )
 

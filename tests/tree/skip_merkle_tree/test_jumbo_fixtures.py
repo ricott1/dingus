@@ -77,5 +77,3 @@ async def skip_test(case, capsys):
             assert is_inclusion_proof(k, q) == False
 
     print([(q.key.hex(), q.value.hex(), q.bitmap.hex()) for q in extra_proof.queries])
-    
-    assert 0

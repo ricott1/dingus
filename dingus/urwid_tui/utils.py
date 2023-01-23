@@ -1,5 +1,6 @@
 import urwid
 import dingus.utils as utils
+import dingus.crypto as crypto
 
 WIDTH = 64
 HEIGHT = 24
@@ -110,7 +111,7 @@ def rgb_list_to_text(rgb_list: list[tuple[int]]) -> str:
 def lisk32_to_avatar(base32_address: str) -> list[tuple[int]]:
     address = utils.get_address_from_lisk32_address(base32_address)
     avatar = []
-    r, g, b = [utils.hash(bytes.fromhex(f"0{i}") + address) for i in range(3)]
+    r, g, b = [crypto.hash(bytes.fromhex(f"0{i}") + address) for i in range(3)]
     color_bin_size = 32
     for i in range(0, len(r), 2):
         _r = int.from_bytes(r[i : i + 1], "big") // color_bin_size * color_bin_size

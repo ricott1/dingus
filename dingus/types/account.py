@@ -52,7 +52,19 @@ class Account(object):
         return Account.from_dict(data)
 
     def to_dict(self) -> dict[str, AccountType]:
-        _dict: dict[str, AccountType] = {**vars(self).items()}
+        # _dict: dict[str, AccountType] = {**vars(self).items()}
+        _dict = {
+            "address": self.address,
+            "name": self.name,
+            "balance": self.balance,
+            "public_key": self.public_key,
+            "nonce": self.nonce,
+            "ciphertext": self.ciphertext,
+            "salt": self.salt,
+            "iv": self.iv,
+            "iteration_count": self.iteration_count,
+            "bookmark": self.bookmark
+        }
         if self.public_key:
             _dict["public_key"] = self.public_key.hexbytes().hex()
 

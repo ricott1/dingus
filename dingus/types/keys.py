@@ -8,11 +8,12 @@ from nacl.signing import SigningKey, VerifyKey
 
 import dingus.constants as constants
 import dingus.utils as utils
+import dingus.crypto as crypto
 
 
 class Address(bytes):
     def __init__(self, source) -> None:
-        assert len(self) == constants.ADDRESS_LENGTH, "Invalid address length."
+        assert len(self) == constants.Length.ADDRESS, "Invalid address length."
         super().__init__()
 
     def to_lsk32(self) -> str:
@@ -21,7 +22,7 @@ class Address(bytes):
 
 class PublicKey(VerifyKey):
     def to_address(self) -> Address:
-        return Address(utils.hash(self.encode())[:20])
+        return Address(crypto.hash(self.encode())[:20])
 
     def hexbytes(self) -> bytes:
         return bytes(self)
@@ -82,4 +83,4 @@ class PrivateKey(SigningKey):
         return data
 
 
-EMPTY_KEY = PublicKey(b"0" * constants.EDSA_PUBLIC_KEY_LENGTH)
+EMPTY_KEY = PublicKey(b"0" * constants.Length.EDSA_PUBLIC_KEY)

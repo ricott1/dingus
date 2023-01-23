@@ -1,66 +1,19 @@
 from __future__ import annotations
-from hashlib import sha256
 import os
 import pyperclip
 from pathlib import Path
-
-from blspy import (
-    BasicSchemeMPL,
-    G1Element,
-    G2Element,
-    PopSchemeMPL,
-    PrivateKey,
-)
-
 import dingus.types.keys as keys
 import dingus.types.account as account
-from dingus.constants import (
-    ADDRESS_LENGTH,
-    PUB_KEY_LENGTH,
-    SEED_LENGTH,
-    LISK32_CHARSET,
-    DEFAULT_LISK32_ADDRESS_PREFIX,
-    LISK32_ADDRESS_LENGTH,
-)
-
-
-def passphrase_to_private_key(passphrase: str) -> keys.PrivateKey:
-    seed = sha256(passphrase.encode()).digest()
-    return keys.PrivateKey(seed)
-
-
-def hash(msg: bytes) -> bytes:
-    return sha256(msg).digest()
-
-
-def sign(msg: bytes, sk: keys.PrivateKey) -> bytes:
-    return sk.sign(msg).signature
-
-def tagMessage(tag: bytes, chainID: bytes, message: bytes) -> bytes:
-    return tag + chainID + message
-
-
-def signBLS(sk: PrivateKey, tag: bytes, chainID: bytes, message: bytes) -> G2Element:
-    taggedMessage = tagMessage(tag, chainID, message)
-    sig = PopSchemeMPL.sign(sk, hash(taggedMessage))
-    assert sig == G2Element.from_bytes(bytes(sig))
-    return sig
-
-def verifyBLS(pk: G1Element, tag: bytes, chainID: bytes, message: bytes, sig: G2Element) -> bool:
-    taggedMessage = tagMessage(tag, chainID, message)
-    return PopSchemeMPL.verify(pk, hash(taggedMessage), sig)
+from dingus.constants import Length, LISK32_CHARSET, DEFAULT_LISK32_ADDRESS_PREFIX
 
 def random_address() -> keys.Address:
-    return keys.Address(os.urandom(ADDRESS_LENGTH))
-
+    return keys.Address(os.urandom(Length.ADDRESS))
 
 def random_public_key() -> keys.PublicKey:
-    return keys.PublicKey(os.urandom(PUB_KEY_LENGTH))
-
+    return keys.PublicKey(os.urandom(Length.PUB_KEY))
 
 def random_private_key() -> keys.PrivateKey:
-    return keys.PrivateKey(os.urandom(SEED_LENGTH))
-
+    return keys.PrivateKey(os.urandom(Length.SEED))
 
 def delete_account(filename: str) -> None:
     filename = f"{os.environ['BASE_PATH']}/accounts/{filename}"
@@ -155,7 +108,7 @@ def address_to_lisk32(address: bytes) -> str:
 
 
 def validate_lisk32_address(address: str, prefix=DEFAULT_LISK32_ADDRESS_PREFIX) -> bool:
-    if len(address) != LISK32_ADDRESS_LENGTH:
+    if len(address) != Length.LISK32_ADDRESS:
         return False
 
     if not address.startswith(DEFAULT_LISK32_ADDRESS_PREFIX):

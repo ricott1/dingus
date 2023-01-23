@@ -3,7 +3,7 @@ from typing import Callable, Any
 import os
 
 from dingus.urwid_tui.utils import attr_button
-from dingus.constants import LSK, BALANCE_TRANSFER_LENGTH
+from dingus.constants import LSK, Length
 
 
 class Prompt(urwid.LineBox):
@@ -179,7 +179,7 @@ class SendPrompt(Prompt):
         self.data_edit = urwid.Edit("Data: ")
         self.fee_edit = urwid.Edit(
             "Fee: LSK ",
-            edit_text=f"{float(BALANCE_TRANSFER_LENGTH *int(os.environ['MIN_FEE_PER_BYTE']) / LSK):.4f}",
+            edit_text=f"{float(Length.BALANCE_TRANSFER*int(os.environ['MIN_FEE_PER_BYTE']) / LSK):.4f}",
         )
         self.pwd_edit = urwid.Edit("Password: ", mask="*")
         params = urwid.ListBox(

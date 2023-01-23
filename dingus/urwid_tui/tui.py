@@ -5,7 +5,7 @@ import string
 import os
 
 import dingus.component as component
-import dingus.transaction as transaction
+import dingus.types.transaction as transaction
 import dingus.urwid_tui.prompts as prompts
 from dingus.urwid_tui.utils import (
     PALETTE,
@@ -19,12 +19,7 @@ from dingus.urwid_tui.utils import (
 )
 from dingus.types.event import Event
 import dingus.utils as utils
-from dingus.constants import (
-    LSK,
-    BALANCE_TRANSFER_MAX_DATA_LENGTH,
-    LISK32_ADDRESS_LENGTH,
-    ID_STRING_LENGTH,
-)
+from dingus.constants import LSK, Length
 import dingus.types.keys as keys
 from dingus.types.account import Account
 
@@ -252,10 +247,10 @@ class SearchBarEdit(urwid.Frame):
     def update_edit_color(self, edit: urwid.Edit, text: str):
         if (
             text.startswith("lsk")
-            and len(text) == LISK32_ADDRESS_LENGTH
+            and len(text) == Length.LISK32_ADDRESS
             and utils.validate_lisk32_address(text)
         ) or (
-            len(text) == ID_STRING_LENGTH and all(c in string.hexdigits for c in text)
+            len(text) == Length.ID_STRING and all(c in string.hexdigits for c in text)
         ):
             self.search_edit.set_caption(("green", "Search:"))
         else:
@@ -266,7 +261,7 @@ class SearchBarEdit(urwid.Frame):
             text = self.search_edit.get_edit_text()
             if (
                 text.startswith("lsk")
-                and len(text) == LISK32_ADDRESS_LENGTH
+                and len(text) == Length.LISK32_ADDRESS
                 and utils.validate_lisk32_address(text)
             ):
                 self.parent.emit_explorer_event(
@@ -278,7 +273,7 @@ class SearchBarEdit(urwid.Frame):
                     },
                 )
                 self.search_edit.edit_text = ""
-            elif len(text) == ID_STRING_LENGTH and all(
+            elif len(text) == Length.ID_STRING and all(
                 c in string.hexdigits for c in text
             ):
                 self.parent.emit_explorer_event(
@@ -313,7 +308,7 @@ class AccountSelection(urwid.ListBox):
 
         select_account_btns = []
         for address, account in self.parent.accounts.items():
-            name = account.name
+            name = f"{account.name} - {account.balance} LSK"
 
             btn = attr_button(
                 ["\n"] + avatar(account.address) + ["\nselect"],
@@ -632,9 +627,9 @@ class AccountInfo(urwid.Pile):
             self.prompt_text("Invalid amount")
             return
 
-        if len(params["data"]) > BALANCE_TRANSFER_MAX_DATA_LENGTH:
+        if len(params["data"]) > Length.BALANCE_TRANSFER_MAX_DATA:
             self.prompt_text(
-                f"Data exceeds maximum length. {len(params['data'])} > {BALANCE_TRANSFER_MAX_DATA_LENGTH}."
+                f"Data exceeds maximum length. {len(params['data'])} > {Length.BALANCE_TRANSFER_MAX_DATA}."
             )
             return
 

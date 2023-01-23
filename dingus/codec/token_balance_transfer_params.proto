@@ -1,9 +1,0 @@
-syntax = "proto2";
-
-message BalanceTransferParams {
-    required bytes tokenID = 1;
-    required uint64 amount = 2;
-    required bytes recipientAddress = 3;
-    required string data = 4;
-    required uint64 accountInitializationFee = 5;
-}

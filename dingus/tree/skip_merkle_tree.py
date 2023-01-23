@@ -139,7 +139,7 @@ class SkipMerkleTree(object):
         values: list[bytes],
         current_subtree: SubTree,
         height: int,
-        is_deleting: bool = True,
+        is_deleting: bool = False,
     ) -> Coroutine[Any, Any, SubTree]:
 
         self.stats["update_subtree_calls"] += 1

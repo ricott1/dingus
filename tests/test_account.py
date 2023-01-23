@@ -27,3 +27,12 @@ def test_create_account():
     params = {**params, **sk.encrypt("pwd")}
     acc = account.Account.from_dict(params)
     assert len(acc.ciphertext) == 96
+
+
+
+if __name__ == "__main__":
+    for _ in range(200):
+        sk = utils.random_private_key()
+        pk = sk.to_public_key()
+        addr = pk.to_address()
+        print(f'{{"private_key": "{bytes(sk).hex()}", "public_key": "{bytes(pk).hex()}", "address": "{bytes(addr).hex()}"}},')

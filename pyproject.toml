@@ -17,9 +17,6 @@ python-socketio = {extras = ["asyncio_client"], version = "^5.5.0"}
 pyaes = "^1.6.1"
 ECPy = "^1.2.5"
 petlib = "^0.0.45"
-
-[tool.poetry.group.dev.dependencies]
-petlib = "^0.0.45"
 blspy = "^1.0.15"
 
 [tool.poetry.dev-dependencies]
@@ -32,7 +29,7 @@ compile-schemas = "dingus.codec.utils:compile_schemas"
 # pyproject.toml
 [tool.pytest.ini_options]
 minversion = "6.0"
-addopts = "-ra -v --durations=0"
+addopts = "-ra -v --durations=0 --import-mode=importlib"
 testpaths = [
     "tests",
     "tests/tree"

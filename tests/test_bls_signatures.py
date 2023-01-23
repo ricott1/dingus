@@ -427,3 +427,13 @@ def test_invalid_points():
         assert False
     except ValueError:
         pass
+
+
+if __name__ == "__main__":
+    import os
+
+    for _ in range(200):
+        seed = os.urandom(32)
+        sk = PopSchemeMPL.key_gen(seed)
+        pk = sk.get_g1()
+        print(f"{{'private_key': '{bytes(sk).hex()}', 'public_key': '{bytes(pk).hex()}'}},")

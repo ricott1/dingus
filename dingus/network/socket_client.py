@@ -1,10 +1,8 @@
-import socketio
 import logging
 import os
 import time
 import dingus.network.api as api
 import dingus.component as component
-from dingus.network.constants import SOCKET_ENDPOINTS
 
 
 class DingusClient(component.ComponentMixin):

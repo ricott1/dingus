@@ -8,4 +8,39 @@ message Transaction {
     required bytes senderPublicKey = 5;
     required bytes params = 6;
     repeated bytes signatures = 7;
-  }
+}
+
+message BalanceTransferParams {
+    required bytes tokenID = 1;
+    required uint64 amount = 2;
+    required bytes recipientAddress = 3;
+    required string data = 4;
+}
+
+message ChainValidator {
+    required bytes blsKey = 1;
+    required uint64 bftWeight = 2;
+}
+
+message SidechainRegistrationParams {
+    required string name = 1;
+    required bytes chainID = 2;
+    repeated ChainValidator sidechainValidators = 3;
+    required uint64 sidechainCertificateThreshold = 4;
+}
+
+message MainchainRegistrationParams {
+    required bytes ownChainID = 1;
+    required string ownName = 2;
+    repeated ChainValidator mainchainValidators = 3;
+    required uint64 mainchainCertificateThreshold = 4;
+    required bytes signature = 5;
+    required bytes aggregationBits = 6;
+}
+
+message RegistrationSignatureMessage {  
+    required bytes ownChainID = 1;
+    required string ownName = 2;
+    repeated ChainValidator mainchainValidators = 3;
+    required uint64 mainchainCertificateThreshold = 4;
+}
