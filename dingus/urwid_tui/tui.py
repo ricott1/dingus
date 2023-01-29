@@ -636,7 +636,7 @@ class AccountInfo(urwid.Pile):
         tx_params = {
             "moduleID": bytes.fromhex("02"),
             "commandID": bytes.fromhex("00"),
-            "senderPublicKey": self.active_account.public_key.hexbytes(),
+            "senderPublicKey": self.active_account.public_key.to_bytes(),
             "nonce": self.active_account.nonce,
             "fee": int(fee * LSK),
             "params": {

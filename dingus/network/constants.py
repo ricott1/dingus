@@ -1,3 +1,6 @@
+from enum import Enum
+
+
 ENDPOINTS = {
     "mainnet": "https://service.lisk.com",
     "testnet": "https://testnet-service.lisk.com",
@@ -15,3 +18,10 @@ RPC_ENDPOINTS = {
     "testnet": "https://testnet-rpc.lisk.com",
     "devnet": "http://localhost:7887",
 }
+
+
+class RPC_REQUEST(str, Enum):
+    POST_TRANSACTION = "txpool_postTransaction"
+    DRY_RUN_TRANSACTION = "txpool_dryRunTransaction"
+    GET_ALL_VALIDATORS = "pos_getAllValidators"
+    GET_BALANCE = "token_getBalances"

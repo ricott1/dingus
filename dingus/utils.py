@@ -19,7 +19,6 @@ def delete_account(filename: str) -> None:
     filename = f"{os.environ['BASE_PATH']}/accounts/{filename}"
     Path(filename).unlink(missing_ok=True)
 
-
 def get_accounts_from_files() -> dict[str : account.Account]:
     accounts = {}
     account_files = os.listdir(f"{os.environ['BASE_PATH']}/accounts")
@@ -39,7 +38,6 @@ def get_accounts_from_files() -> dict[str : account.Account]:
 
 def copy_to_clipboard(text: str) -> None:
     pyperclip.copy(text)
-
 
 def convert_uint_array(
     uint_array: list[int], from_bits: int, to_bits: int

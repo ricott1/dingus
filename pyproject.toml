@@ -1,9 +1,12 @@
 [tool.poetry]
 name = "dingus"
-version = "0.4.1"
+version = "0.6.0"
 description = "Command-line Lisk explorer"
 authors = ["Alessandro Ricottone <ricott2@gmail.com>"]
 license = "MIT"
+packages = [
+    { include = "dingus" },
+]
 
 [tool.poetry.dependencies]
 python = "^3.10"

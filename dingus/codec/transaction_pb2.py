@@ -14,16 +14,11 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x11transaction.proto\"\x87\x01\n\x0bTransaction\x12\x0e\n\x06module\x18\x01 \x02(\t\x12\x0f\n\x07\x63ommand\x18\x02 \x02(\t\x12\r\n\x05nonce\x18\x03 \x02(\x04\x12\x0b\n\x03\x66\x65\x65\x18\x04 \x02(\x04\x12\x17\n\x0fsenderPublicKey\x18\x05 \x02(\x0c\x12\x0e\n\x06params\x18\x06 \x02(\x0c\x12\x12\n\nsignatures\x18\x07 \x03(\x0c\"`\n\x15\x42\x61lanceTransferParams\x12\x0f\n\x07tokenID\x18\x01 \x02(\x0c\x12\x0e\n\x06\x61mount\x18\x02 \x02(\x04\x12\x18\n\x10recipientAddress\x18\x03 \x02(\x0c\x12\x0c\n\x04\x64\x61ta\x18\x04 \x02(\t\"3\n\x0e\x43hainValidator\x12\x0e\n\x06\x62lsKey\x18\x01 \x02(\x0c\x12\x11\n\tbftWeight\x18\x02 \x02(\x04\"\x91\x01\n\x1bSidechainRegistrationParams\x12\x0c\n\x04name\x18\x01 \x02(\t\x12\x0f\n\x07\x63hainID\x18\x02 \x02(\x0c\x12,\n\x13sidechainValidators\x18\x03 \x03(\x0b\x32\x0f.ChainValidator\x12%\n\x1dsidechainCertificateThreshold\x18\x04 \x02(\x04\"\xc3\x01\n\x1bMainchainRegistrationParams\x12\x12\n\nownChainID\x18\x01 \x02(\x0c\x12\x0f\n\x07ownName\x18\x02 \x02(\t\x12,\n\x13mainchainValidators\x18\x03 \x03(\x0b\x32\x0f.ChainValidator\x12%\n\x1dmainchainCertificateThreshold\x18\x04 \x02(\x04\x12\x11\n\tsignature\x18\x05 \x02(\x0c\x12\x17\n\x0f\x61ggregationBits\x18\x06 \x02(\x0c\"\x98\x01\n\x1cRegistrationSignatureMessage\x12\x12\n\nownChainID\x18\x01 \x02(\x0c\x12\x0f\n\x07ownName\x18\x02 \x02(\t\x12,\n\x13mainchainValidators\x18\x03 \x03(\x0b\x32\x0f.ChainValidator\x12%\n\x1dmainchainCertificateThreshold\x18\x04 \x02(\x04')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x11transaction.proto\"\x87\x01\n\x0bTransaction\x12\x0e\n\x06module\x18\x01 \x02(\t\x12\x0f\n\x07\x63ommand\x18\x02 \x02(\t\x12\r\n\x05nonce\x18\x03 \x02(\x04\x12\x0b\n\x03\x66\x65\x65\x18\x04 \x02(\x04\x12\x17\n\x0fsenderPublicKey\x18\x05 \x02(\x0c\x12\x0e\n\x06params\x18\x06 \x02(\x0c\x12\x12\n\nsignatures\x18\x07 \x03(\x0c')
 
 
 
 _TRANSACTION = DESCRIPTOR.message_types_by_name['Transaction']
-_BALANCETRANSFERPARAMS = DESCRIPTOR.message_types_by_name['BalanceTransferParams']
-_CHAINVALIDATOR = DESCRIPTOR.message_types_by_name['ChainValidator']
-_SIDECHAINREGISTRATIONPARAMS = DESCRIPTOR.message_types_by_name['SidechainRegistrationParams']
-_MAINCHAINREGISTRATIONPARAMS = DESCRIPTOR.message_types_by_name['MainchainRegistrationParams']
-_REGISTRATIONSIGNATUREMESSAGE = DESCRIPTOR.message_types_by_name['RegistrationSignatureMessage']
 Transaction = _reflection.GeneratedProtocolMessageType('Transaction', (_message.Message,), {
   'DESCRIPTOR' : _TRANSACTION,
   '__module__' : 'transaction_pb2'
@@ -31,54 +26,9 @@ Transaction = _reflection.GeneratedProtocolMessageType('Transaction', (_message.
   })
 _sym_db.RegisterMessage(Transaction)
 
-BalanceTransferParams = _reflection.GeneratedProtocolMessageType('BalanceTransferParams', (_message.Message,), {
-  'DESCRIPTOR' : _BALANCETRANSFERPARAMS,
-  '__module__' : 'transaction_pb2'
-  # @@protoc_insertion_point(class_scope:BalanceTransferParams)
-  })
-_sym_db.RegisterMessage(BalanceTransferParams)
-
-ChainValidator = _reflection.GeneratedProtocolMessageType('ChainValidator', (_message.Message,), {
-  'DESCRIPTOR' : _CHAINVALIDATOR,
-  '__module__' : 'transaction_pb2'
-  # @@protoc_insertion_point(class_scope:ChainValidator)
-  })
-_sym_db.RegisterMessage(ChainValidator)
-
-SidechainRegistrationParams = _reflection.GeneratedProtocolMessageType('SidechainRegistrationParams', (_message.Message,), {
-  'DESCRIPTOR' : _SIDECHAINREGISTRATIONPARAMS,
-  '__module__' : 'transaction_pb2'
-  # @@protoc_insertion_point(class_scope:SidechainRegistrationParams)
-  })
-_sym_db.RegisterMessage(SidechainRegistrationParams)
-
-MainchainRegistrationParams = _reflection.GeneratedProtocolMessageType('MainchainRegistrationParams', (_message.Message,), {
-  'DESCRIPTOR' : _MAINCHAINREGISTRATIONPARAMS,
-  '__module__' : 'transaction_pb2'
-  # @@protoc_insertion_point(class_scope:MainchainRegistrationParams)
-  })
-_sym_db.RegisterMessage(MainchainRegistrationParams)
-
-RegistrationSignatureMessage = _reflection.GeneratedProtocolMessageType('RegistrationSignatureMessage', (_message.Message,), {
-  'DESCRIPTOR' : _REGISTRATIONSIGNATUREMESSAGE,
-  '__module__' : 'transaction_pb2'
-  # @@protoc_insertion_point(class_scope:RegistrationSignatureMessage)
-  })
-_sym_db.RegisterMessage(RegistrationSignatureMessage)
-
 if _descriptor._USE_C_DESCRIPTORS == False:
 
   DESCRIPTOR._options = None
   _TRANSACTION._serialized_start=22
   _TRANSACTION._serialized_end=157
-  _BALANCETRANSFERPARAMS._serialized_start=159
-  _BALANCETRANSFERPARAMS._serialized_end=255
-  _CHAINVALIDATOR._serialized_start=257
-  _CHAINVALIDATOR._serialized_end=308
-  _SIDECHAINREGISTRATIONPARAMS._serialized_start=311
-  _SIDECHAINREGISTRATIONPARAMS._serialized_end=456
-  _MAINCHAINREGISTRATIONPARAMS._serialized_start=459
-  _MAINCHAINREGISTRATIONPARAMS._serialized_end=654
-  _REGISTRATIONSIGNATUREMESSAGE._serialized_start=657
-  _REGISTRATIONSIGNATUREMESSAGE._serialized_end=809
 # @@protoc_insertion_point(module_scope)

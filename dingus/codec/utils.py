@@ -1,7 +1,25 @@
 import os
 import subprocess
 from dingus.constants import Length
+import base64
 
+def normalize_bytes(properties: dict) -> None:
+    '''
+    Convert hex encoded bytes to base64 bytes
+    '''
+    for k, v in properties.items():
+        if isinstance(v, bytes):
+            properties[k] = base64.b64encode(v)
+        elif isinstance(v, dict):
+            properties[k] = normalize_bytes(v)
+        elif isinstance(v, list):
+            for i in range(len(v)):
+                if isinstance(v[i], bytes):
+                    v[i] = base64.b64encode(v[i])
+                elif isinstance(v[i], dict):
+                    v[i] = normalize_bytes(v[i])
+            properties[k] = v
+    return properties
 
 def compile_schemas():
     for file in os.listdir("."):
@@ -9,15 +27,14 @@ def compile_schemas():
             print(file)
             subprocess.run(["protoc", "--python_out=.", file], stdout=subprocess.PIPE)
 
-def compile_schema(schema: str, name: str):
+def compile_schema(schema: str, name: str) -> bytes:
     filename = f"{name.lower()}.proto"
     with open(filename, "w") as f:
         f.write(schema)
     p = subprocess.run(["protoc", "--python_out=.", filename], stdout=subprocess.PIPE)
-   
-    print(p.stdout)
+    return p.stdout
 
-def json_schema_to_protobuf(schema: str | dict, name: str):
+def json_schema_to_protobuf(schema: str | dict, name: str) -> str:
     import json
     name = name[0].upper() + name[1:]
     if isinstance(schema, str):

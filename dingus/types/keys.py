@@ -18,17 +18,20 @@ class Address(bytes):
 
     def to_lsk32(self) -> str:
         return utils.address_to_lisk32(self)
-
-
-class PublicKey(VerifyKey):
-    def to_address(self) -> Address:
-        return Address(crypto.hash(self.encode())[:20])
-
-    def hexbytes(self) -> bytes:
+    
+    def to_bytes(self) -> bytes:
         return bytes(self)
 
 
-class PrivateKey(SigningKey):
+class PublicKey(bytes, VerifyKey):
+    def to_address(self) -> Address:
+        return Address(crypto.hash(self.encode())[:20])
+
+    def to_bytes(self) -> bytes:
+        return bytes(self)
+
+
+class PrivateKey(bytes, SigningKey):
     @classmethod
     def from_passphrase(cls, passphrase: str) -> PrivateKey:
         return utils.passphrase_to_private_key(passphrase)
@@ -60,7 +63,7 @@ class PrivateKey(SigningKey):
     def to_public_key(self) -> PublicKey:
         return PublicKey(self.verify_key._key)
 
-    def hexbytes(self) -> bytes:
+    def to_bytes(self) -> bytes:
         return bytes(self)
 
     def encrypt(self, password: str = "", iteration_count: int = 1000000) -> dict:
@@ -84,3 +87,9 @@ class PrivateKey(SigningKey):
 
 
 EMPTY_KEY = PublicKey(b"0" * constants.Length.EDSA_PUBLIC_KEY)
+
+
+if __name__ == "__main__":
+    pub_key = PublicKey(bytes.fromhex("a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2"))
+    print(pub_key.to_address().to_lsk32())
+    print(pub_key)

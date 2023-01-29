@@ -21,6 +21,16 @@ def start():
     )
 
     parser.add_argument(
+        "-E",
+        "--endpoint",
+        type=str,
+        nargs=1,
+        default=["rpc"],
+        choices=["rpc", "service"],
+        help="specify type of endpoint to use for http requests (rpc or Lisk service)",
+    )
+
+    parser.add_argument(
         "-P",
         "--base-path",
         type=str,
