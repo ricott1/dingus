@@ -40,31 +40,26 @@ def json_schema_to_protobuf(schema: str | dict, name: str) -> str:
     if isinstance(schema, str):
         schema = json.loads(schema)
 
+    msg = f'syntax = "proto2";\n\n'
+    body, req = get_proto_messages(schema, name)
+    msg += body
+    while req:
+        key, value = req.pop()
+        message_name = f"{name}_{key[0].upper()}{key[1:]}"
+        body, new_req = get_proto_messages(value, message_name)
+        msg += body
+        req.extend(new_req)
+    
+    return msg
+
+def get_proto_messages(schema: str | dict, name: str) -> tuple[str, list]:
     required_message_definitions = []
     body = ""
     for key, value in schema["properties"].items():
         body += property_to_message(key, value, name)
         if req := get_required_message_definitions(key, value):
             required_message_definitions.append(req)
-
-    msg = f'''
-syntax = "proto2";
-message {name} {{
-    {body}
-}}
-'''
-    # Only works with 1 nested layer of objects
-    for key, value in required_message_definitions:
-        message_name = f"{name}_{key[0].upper()}{key[1:]}"
-        body = ""
-        for k, v in value["properties"].items():
-            body += property_to_message(k, v, message_name)
-        msg += f'''
-message {message_name} {{
-    {body}
-}}
-'''
-    return msg
+    return (f'message {name} {{\n    {body}}}\n\n', required_message_definitions)
 
 def get_required_message_definitions(key, value):
     if "type" in value and value["type"] == "object":

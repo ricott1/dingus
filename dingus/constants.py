@@ -8,12 +8,15 @@ EVENT_TAGS = ["user_input", "service_subscription", "api_response"]
 
 class SignatureTags(bytes, enum.Enum):
     TRANSACTION = "LSK_TX_".encode('ascii')
+    BLOCK_HEADER = "LSK_BH_".encode('ascii')
+    CERTIFICATE = "LSK_CE_".encode('ascii')
 
 MAX_NUM_VALIDATORS = 199
 NUMBER_ACTIVE_VALIDATORS_MAINCHAIN = 101
 
 class Length(int, enum.Enum):
     PUB_KEY = 32
+    HASH = 32
     ADDRESS = 20
     SEED = 32
     LISK32_ADDRESS = 41
@@ -28,6 +31,8 @@ class Length(int, enum.Enum):
     CHAIN_NAME_MIN = 1
     COMMAND_NAME_MIN = 1
     COMMAND_NAME_MAX = 32
+    CCCOMMAND_NAME_MIN = 1
+    CCCOMMAND_NAME_MAX = 32
     MODULE_NAME_MIN = 1
     MODULE_NAME_MAX = 32
     BLS_PUBLIC_KEY = 48

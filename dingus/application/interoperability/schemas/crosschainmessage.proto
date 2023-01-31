@@ -1,6 +1,6 @@
 syntax = "proto2";
 
-message CCM {
+message CrossChainMessage {
     required string module = 1;
     required string crossChainCommand = 2;
     required uint64 nonce = 3;
@@ -9,10 +9,5 @@ message CCM {
     required bytes receivingChainID = 6;
     required bytes params = 7;
     required uint32 status = 8;
-  }
+    }
 
-  message Registration {
-    required string name = 1;
-    required bytes chainID = 2;
-    required bytes messageFeeTokenID = 3;
-  }

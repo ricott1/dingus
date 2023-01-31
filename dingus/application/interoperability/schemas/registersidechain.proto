@@ -1,15 +1,14 @@
-
 syntax = "proto2";
-message SidechainRegistrationParams {
+
+message RegisterSidechain {
     required bytes chainID = 1;
     required string name = 2;
-    repeated SidechainRegistrationParams_SidechainValidators sidechainValidators = 3;
+    repeated RegisterSidechain_SidechainValidators sidechainValidators = 3;
     required uint64 sidechainCertificateThreshold = 4;
-    
-}
+    }
 
-message SidechainRegistrationParams_SidechainValidators {
+message RegisterSidechain_SidechainValidators {
     required bytes blsKey = 1;
     required uint64 bftWeight = 2;
-    
-}
+    }
+

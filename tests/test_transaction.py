@@ -1,25 +1,22 @@
 import json
-from typing import Any
-import requests
-from dingus.network.constants import RPC_REQUEST
 from dingus.types.transaction import Transaction
 from dingus.types.keys import PrivateKey, PublicKey, Address
 from google.protobuf.json_format import  ParseDict
 import os
-import dingus.codec as codec
 from dingus.codec.utils import normalize_bytes
 import dingus.utils as utils
 import dingus.network.api as api
-import dingus.crypto as crypto
 
 
 def register_mainchain():
-    mainchain_validators, mainchain_certificate_threshold = get_bft_params_from_endpoint()
+    mainchain_validators, mainchain_certificate_threshold = api.get_last_bft_params("https://lisk.frittura.org")
+    mainchain_validators = sorted(mainchain_validators, key=lambda v: v["blsKey"])
+    nonce = int(api.get_auth_account(sidechain_key.to_public_key().to_address().to_lsk32())["result"]["nonce"])
     params = {
         "module": "interoperability",
         "command": "registerMainchain",
-        "nonce": 0,
-        "fee": 1438000,
+        "nonce": nonce,
+        "fee": 7350000,
         "senderPublicKey": sidechain_key.to_public_key(),
         "params": {
             "ownChainID": bytes.fromhex("04000123"),
@@ -31,17 +28,18 @@ def register_mainchain():
         },
         "signatures": []
     }
-
+    
     from dingus.application.interoperability.schemas import proto
 
     reg_message = proto["mainchainRegistrationMessage"]()
+    reg_mainchain_validators, reg_mainchain_certificate_threshold = api.get_last_bft_params("https://lisk.frittura.org")
+    reg_mainchain_validators = sorted(reg_mainchain_validators, key=lambda v: v["blsKey"])
     reg_message_params = {
         "ownChainID": params["params"]["ownChainID"],
         "ownName": params["params"]["ownName"],
-        "mainchainValidators": params["params"]["mainchainValidators"],
-        "mainchainCertificateThreshold": params["params"]["mainchainCertificateThreshold"],
+        "mainchainValidators": reg_mainchain_validators,
+        "mainchainCertificateThreshold": reg_mainchain_certificate_threshold,
     }
-
     reg_message = ParseDict(normalize_bytes(reg_message_params), reg_message)
 
     from dingus.crypto import signBLS, createAggSig
@@ -53,7 +51,8 @@ def register_mainchain():
             "blsPrivateKey": bytes.fromhex(v["plain"]["blsPrivateKey"]),
         } for v in validators_data["keys"]
     ]
-    sidechain_validators, sidechain_certificate_threshold = get_bft_params_from_endpoint("http://localhost:7887")
+    sidechain_validators, sidechain_certificate_threshold = api.get_last_bft_params()
+
     tag = "LSK_CHAIN_REGISTRATION_".encode("ascii")
     chainID = params["params"]["ownChainID"]
     message = reg_message.SerializeToString()
@@ -73,19 +72,18 @@ def register_mainchain():
     params["params"]["signature"] = bytes(signature)
 
     trs = Transaction.from_dict(params)
-    os.environ["CHAIN_ID"] = "04000123"
     trs.sign(sidechain_key)
-
     return trs
 
-
 def register_sidechain() -> Transaction:
-    sidechain_validators, sidechain_certificate_threshold = get_bft_params_from_endpoint("http://localhost:7887")
+    sidechain_validators, sidechain_certificate_threshold = api.get_last_bft_params("http://localhost:7887")
+    sidechain_validators = sorted(sidechain_validators, key=lambda x: x["blsKey"])
+    nonce = int(api.get_auth_account(mainchain_key.to_public_key().to_address().to_lsk32())["result"]["nonce"])
     params = {
         "module": "interoperability",
         "command": "registerSidechain",
-        "nonce": 0,
-        "fee": 1005000000,
+        "nonce": nonce,
+        "fee": 1515000000,
         "senderPublicKey": mainchain_key.to_public_key(),
         "params": {
             "chainID": bytes.fromhex("04000123"),
@@ -97,41 +95,30 @@ def register_sidechain() -> Transaction:
     }
 
     trs = Transaction.from_dict(params)
-    os.environ["CHAIN_ID"] = "04000000"
     trs.sign(mainchain_key)
-
-    # schema = codec.validators.Validators()
-    # for v in params["params"]["sidechainValidators"]:
-    #     val_schema = codec.validators.Validator()
-    #     val_schema.blsKey = v["blsKey"]
-    #     val_schema.bftWeight = v["bftWeight"]
-    #     schema.validators.extend([val_schema])
-
-    # schema.certificateThreshold = params["params"]["sidechainCertificateThreshold"]
-    # print("validators hash", crypto.hash(schema.SerializeToString()).hex())
-    
     return trs
 
-
 def token_transfer() -> Transaction:
-    priv_key = mainchain_key
+    if os.environ["CHAIN_ID"].endswith("000000"):
+        priv_key = mainchain_key
+    else:
+        priv_key = sidechain_key
     pub_key = priv_key.to_public_key()
-    
+    nonce = int(api.get_auth_account(pub_key.to_address().to_lsk32())["result"]["nonce"])
     params = {
         "module": "token",
         "command": "transfer",
         "senderPublicKey": pub_key,
-        "nonce": 5,
+        "nonce": nonce,
         "fee": 26299416,
         "params": {
-            "tokenID": bytes.fromhex("0400000000000000"),
+            "tokenID": bytes.fromhex(os.environ["CHAIN_ID"] + "00000000"),
             "amount": 500000000000,
             "recipientAddress": gregorio,
             "data": "Un dono per Gregoriello.",
         },
         "signatures": []
     }
-    os.environ["CHAIN_ID"] = "04000000"
     trs = Transaction.from_dict(params)
     trs.sign(priv_key)
     return trs
@@ -162,47 +149,6 @@ def lip68() -> Transaction:
     return trs
 
 
-
-def get_node_info(endpoint: str = "https://lisk.frittura.org") -> dict:
-    if resp := api.rpc_request("system_getNodeInfo", endpoint=endpoint) and resp.status_code == 200:
-        return resp.json()
-    return {}
-
-def get_validator(address: str, endpoint: str = "https://lisk.frittura.org") -> dict:
-    if resp := api.rpc_request("validators_getValidator", params={"address": f"{address}"}, endpoint=endpoint) and resp.status_code == 200:
-        return resp.json()
-    return {}
-
-def get_generator_list(height: int, endpoint: str = "https://lisk.frittura.org") -> dict:
-    if resp := api.rpc_request("chain_getGeneratorList", params={"height": height}, endpoint=endpoint) and resp.status_code == 200:
-        return resp.json()
-    return {}
-
-def get_bft_parameters(height: int, endpoint: str = "https://lisk.frittura.org") -> dict:
-    if resp := api.rpc_request("consensus_getBFTParameters", params= {"height": height}, endpoint=endpoint) and resp.status_code == 200:
-        return resp.json()
-    return {}
-
-def get_balance(address: str, endpoint: str = "https://lisk.frittura.org") -> dict:
-    return api.rpc_request(RPC_REQUEST.GET_BALANCE, params={"address": f"{address}"}, endpoint=endpoint).json()
-
-def get_bft_params_from_endpoint(endpoint: str = "https://lisk.frittura.org") -> tuple[list[dict[str, Any]], int]:
-    if node_info := get_node_info(endpoint):
-        finalized_height = node_info["result"]["finalizedHeight"]
-    else:
-        return ([], 0)
-        
-    bft_params = get_bft_parameters(finalized_height)["result"]
-    validators = [
-        { 
-            "blsKey": bytes.fromhex(v["blsKey"]),
-            "bftWeight": v["bftWeight"],
-            
-        } for v in bft_params["validators"]]
-    threshold = bft_params["certificateThreshold"]
-    return (validators, threshold)
-
-
 def get_chain_validators_from_file(filename: str):
     validators_data = json.loads(open(filename, "r").read())
     bls_keys = sorted([bytes.fromhex(v["plain"]["blsKey"]) for v in validators_data["keys"]])
@@ -221,9 +167,12 @@ gregorio = PublicKey(bytes.fromhex("67cb29899c1dc54486d600d1081162f7ea4cd9414de8
 maxime = utils.get_address_from_lisk32_address("lskduq5evojpfuephanymmmw55umt8yajow33bmtm")
 
 if __name__ == "__main__":
+    os.environ["CHAIN_ID"] = "04000000" #mainchain
+    # os.environ["CHAIN_ID"] = "04000123" #sidechain
     # trs = register_sidechain()
     # print("signed trs:", trs)
     # print("\nID:", trs.id.hex())
     # trs.send()
-    print(get_balance("lskduq5evojpfuephanymmmw55umt8yajow33bmtm"))
-
+    print("\n\n", json.dumps(api.get_last_finalized_block(), indent=4))
+    # print("events 3308\n\n", json.dumps(api.get_events_by_height(837)["result"], indent=4))
+    # print("auth", json.dumps(api.get_auth_account("lskduq5evojpfuephanymmmw55umt8yajow33bmtm")["result"], indent=4))

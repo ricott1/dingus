@@ -13,9 +13,6 @@ def passphrase_to_private_key(passphrase: str) -> keys.PrivateKey:
 def hash(msg: bytes) -> bytes:
     return sha256(msg).digest()
 
-def sign(msg: bytes, sk: keys.PrivateKey) -> bytes:
-    return sk.sign(msg).signature
-
 def tagMessage(tag: bytes, chainID: bytes, message: bytes) -> bytes:
     return tag + chainID + message
 

@@ -1,18 +1,26 @@
-from .json_schemas import sidechainRegistrationParams, mainchainRegistrationParams, mainchainRegistrationMessage
+from .json_schemas import sidechainRegistrationParams, mainchainRegistrationParams, mainchainRegistrationMessage, crossChainMessageSchema, crossChainUpdateTransactionParams
 from .mainchainregistrationmessage_pb2 import MainchainRegistrationMessage
-from .sidechainregistrationparams_pb2 import SidechainRegistrationParams
-from .mainchainregistrationparams_pb2 import MainchainRegistrationParams
+from .registersidechain_pb2 import RegisterSidechain
+from .registermainchain_pb2 import RegisterMainchain
+from .crosschainmessage_pb2 import CrossChainMessage
+from .crosschainupdate_pb2 import CrossChainUpdate
 
 proto = {
-    "registerSidechain": SidechainRegistrationParams,
-    "registerMainchain": MainchainRegistrationParams,
-    "mainchainRegistrationMessage": MainchainRegistrationMessage
+    "registerSidechain": RegisterSidechain,
+    "registerMainchain": RegisterMainchain,
+    "mainchainRegistrationMessage": MainchainRegistrationMessage,
+    "crossChainMessage": CrossChainMessage,
+    "submitSidechainCrossChainUpdate": CrossChainUpdate,
+    "submitMainchainCrossChainUpdate": CrossChainUpdate,
 }
 
 json = {
     "registerSidechain": sidechainRegistrationParams,
     "registerMainchain": mainchainRegistrationParams,
-    "mainchainRegistrationMessage": mainchainRegistrationMessage
+    "mainchainRegistrationMessage": mainchainRegistrationMessage,
+    "crossChainMessage": crossChainMessageSchema,
+    "submitSidechainCrossChainUpdate": crossChainUpdateTransactionParams,
+    "submitMainchainCrossChainUpdate": crossChainUpdateTransactionParams,
 }
 
 

@@ -1,0 +1,27 @@
+syntax = "proto2";
+
+message CrossChainUpdate {
+    required bytes sendingChainID = 1;
+    required bytes certificate = 2;
+    required CrossChainUpdate_ActiveValidatorsUpdate activeValidatorsUpdate = 3;
+    required uint64 certificateThreshold = 4;
+    required CrossChainUpdate_InboxUpdate inboxUpdate = 5;
+    }
+
+message CrossChainUpdate_InboxUpdate {
+    repeated bytes crossChainMessages = 1;
+    repeated bytes messageWitnessHashes = 2;
+    required CrossChainUpdate_InboxUpdate_OutboxRootWitness outboxRootWitness = 3;
+    }
+
+message CrossChainUpdate_InboxUpdate_OutboxRootWitness {
+    required bytes bitmap = 1;
+    repeated bytes siblingHashes = 2;
+    }
+
+message CrossChainUpdate_ActiveValidatorsUpdate {
+    repeated bytes blsKeysUpdate = 1;
+    repeated uint64 bftWeightsUpdate = 2;
+    required bytes bftWeightsUpdateBitmap = 3;
+    }
+

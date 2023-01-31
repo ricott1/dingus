@@ -32,12 +32,12 @@ class Transaction(object):
         
         self.params = Params(properties['module'], properties['command'], properties["params"])
         properties["params"] = self.params.bytes
+
+        # Temporarily remove signatures to get signing bytes
         properties["signatures"] = []
         self.proto_schema = ParseDict(normalize_bytes(properties), self.proto_schema)
-        # Temporarily remove signatures to get signing bytes
         self.unsigned_bytes = self.proto_schema.SerializeToString()
         self.proto_schema.signatures.extend(self.signatures)
-
 
     @classmethod
     def from_dict(cls, properties: dict) -> Transaction:
@@ -73,7 +73,7 @@ class Transaction(object):
             logging.warning("Cannot sign transaction, network ID not set.")
             return
 
-        signature = crypto.sign(self.signing_bytes, sk)
+        signature = sk.sign(self.signing_bytes).signature
         self.proto_schema.signatures.extend([signature])
         self.signatures.append(signature)
         return self
