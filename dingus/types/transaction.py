@@ -5,12 +5,11 @@ from typing import Any
 import jsonschema
 
 import dingus.codec as codec
-from dingus.codec.utils import normalize_bytes
+from dingus.codec.utils import parse_from_bytes
 import dingus.crypto as crypto
 import dingus.network.api as api
 from dingus.constants import Length, SignatureTags
-from dingus.codec.json_format import MessageToDict #to decode to hex
-from google.protobuf.json_format import  ParseDict
+from dingus.codec.json_format import MessageToDict, ParseDict #to decode to hex
 from nacl.signing import SigningKey
 
 import os
@@ -24,24 +23,37 @@ class Transaction(object):
         jsonschema.validate(properties, self.json_schema)
         self.proto_schema = codec.transaction.Transaction()
         
-        for k, v in properties.items():
-            # params are not set directly
-            if k == "params":
-                continue
-            setattr(self, k, v)
-        
-        self.params = Params(properties['module'], properties['command'], properties["params"])
-        properties["params"] = self.params.bytes
+        self.module = properties["module"]
+        self.command = properties["command"]
+        self.nonce = int(properties["nonce"])
+        self.fee = int(properties["fee"])
+        if isinstance(properties["senderPublicKey"], str):
+            self.senderPublicKey = bytes.fromhex(properties["senderPublicKey"])
+        elif isinstance(properties["senderPublicKey"], bytes):
+            self.senderPublicKey = properties["senderPublicKey"]
 
+        self.params = Params(properties['module'], properties['command'], properties["params"])
+        self.signatures = []
+        for sig in properties["signatures"]:
+            if isinstance(sig, str):
+                self.signatures.append(bytes.fromhex(sig))
+            elif isinstance(sig, bytes):
+                self.signatures.append(sig)
+        
+        properties["params"] = self.params.bytes
         # Temporarily remove signatures to get signing bytes
         properties["signatures"] = []
-        self.proto_schema = ParseDict(normalize_bytes(properties), self.proto_schema)
+        self.proto_schema = ParseDict(properties, self.proto_schema)
         self.unsigned_bytes = self.proto_schema.SerializeToString()
         self.proto_schema.signatures.extend(self.signatures)
 
     @classmethod
     def from_dict(cls, properties: dict) -> Transaction:
         return Transaction(properties)
+    
+    @classmethod
+    def from_bytes(cls, tx_bytes: bytes) -> Transaction:
+        return parse_from_bytes(codec.transaction.Transaction, tx_bytes)
 
     @property
     def bytes(self) -> bytes:
@@ -78,9 +90,9 @@ class Transaction(object):
         self.signatures.append(signature)
         return self
 
-    def send(self) -> None:
+    def send(self, endpoint: str = "") -> dict:
         assert self.is_signed, "Cannot send unsigned transaction."
-        return api.send_transaction(self.bytes.hex())
+        return api.send_transaction(self.bytes.hex(), endpoint=endpoint)
 
     def __str__(self) -> str:
         d = self.to_dict
@@ -89,17 +101,27 @@ class Transaction(object):
 
 
 class Params(object):
-    def __init__(self, module: str, command: str, properties: dict[str, Any]) -> None:
+    def __init__(self, module: str, command: str, properties: dict[str, Any] | bytes | str) -> None:
+        if isinstance(properties, str):
+            properties = bytes.fromhex(properties)
+        self.proto_schema = params_proto_schemas[module][command]()
+        if isinstance(properties, bytes):
+            self.proto_schema.ParseFromString(properties)
+            properties = MessageToDict(self.proto_schema)
         self.json_schema = params_json_schemas[module][command]
         jsonschema.validate(properties, self.json_schema)
-        self.proto_schema = params_proto_schemas[module][command]()
-        self.proto_schema = ParseDict(normalize_bytes(properties), self.proto_schema)
+        
+        self.proto_schema = ParseDict(properties, self.proto_schema)
         for k, v in properties.items():
             setattr(self, k, v)
 
     @property
     def bytes(self) -> bytes:
         return self.proto_schema.SerializeToString()
+    
+    @classmethod
+    def from_bytes(cls, module: str, command: str, params_bytes: bytes) -> Params:
+        return parse_from_bytes(params_proto_schemas[module][command], params_bytes)
     
     @property
     def to_dict(self) -> dict:

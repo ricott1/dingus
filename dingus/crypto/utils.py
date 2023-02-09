@@ -3,12 +3,30 @@ from hashlib import sha256
 import math
 import blspy as bls
 
-import dingus.types.keys as keys
+import unicodedata
+import hashlib
 
+def normalize_string(txt: str | bytes) -> str:
+    if isinstance(txt, bytes):
+        utxt = txt.decode("utf8")
+    elif isinstance(txt, str):
+        utxt = txt
+    else:
+        raise TypeError("String value expected")
 
-def passphrase_to_private_key(passphrase: str) -> keys.PrivateKey:
-    seed = sha256(passphrase.encode()).digest()
-    return keys.PrivateKey(seed)
+    return unicodedata.normalize("NFKD", utxt)
+
+def passphrase_to_seed(passphrase: str, password: str ="") -> bytes:
+    PBKDF2_ROUNDS = 2048
+    passphrase = normalize_string(passphrase)
+    password = normalize_string(password)
+    password = "mnemonic" + password
+    passphrase_bytes = passphrase.encode("utf-8")
+    password_bytes = password.encode("utf-8")
+    stretched = hashlib.pbkdf2_hmac(
+        "sha512", passphrase_bytes, password_bytes, PBKDF2_ROUNDS
+    )
+    return stretched[:64]
 
 def hash(msg: bytes) -> bytes:
     return sha256(msg).digest()

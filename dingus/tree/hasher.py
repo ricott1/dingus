@@ -1,8 +1,8 @@
 from ecpy.curves import Curve, Point
 
 # import dingus.tree.types as types
-from dingus.utils import hash
-from .constants import EMPTY_HASH, BRANCH_PREFIX
+from dingus.crypto import hash
+from dingus.tree.constants import EMPTY_HASH, BRANCH_PREFIX
 
 
 eddsa = Curve.get_curve("Ed25519")

@@ -1,9 +1,14 @@
 syntax = "proto2";
 
 message Block {
-    required Header header = 1;
+    required bytes header = 1;
     repeated bytes transactions = 2;
     repeated bytes assets = 3;
+}
+
+message Asset {
+    required string module = 1;
+    required bytes data = 2;
 }
 
 message AggregateCommit {
@@ -24,7 +29,8 @@ message Header {
     required bytes stateRoot = 9;
     required uint32 maxHeightPrevoted = 10;
     required uint32 maxHeightGenerated = 11;
-    required bytes validatorsHash = 12;
-    required AggregateCommit aggregateCommit = 13;
-    optional bytes signature = 14;
+    required bool impliesMaxPrevotes = 12;
+    required bytes validatorsHash = 13;
+    required AggregateCommit aggregateCommit = 14;
+    optional bytes signature = 15;
 }

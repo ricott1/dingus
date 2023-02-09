@@ -1,4 +1,5 @@
 import dingus.types.account as account
+from dingus.types.keys import PrivateKey
 import dingus.utils as utils
 
 
@@ -23,7 +24,7 @@ def test_create_account():
     passphrase = (
         "peanut hundred pen hawk invite exclude brain chunk gadget wait wrong ready"
     )
-    sk = utils.passphrase_to_private_key(passphrase)
+    sk = PrivateKey.from_passphrase(passphrase)
     params = {**params, **sk.encrypt("pwd")}
     acc = account.Account.from_dict(params)
     assert len(acc.ciphertext) == 96

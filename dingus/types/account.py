@@ -11,11 +11,8 @@ import logging
 import os
 
 
-
-
 class InvalidAccountFileError(Exception):
     pass
-
 
 @dataclass
 class Account(object):

@@ -9,6 +9,7 @@ from nacl.signing import SigningKey, VerifyKey
 import dingus.constants as constants
 import dingus.utils as utils
 import dingus.crypto as crypto
+import hmac, hashlib
 
 
 class Address(bytes):
@@ -32,9 +33,6 @@ class PublicKey(bytes, VerifyKey):
 
 
 class PrivateKey(bytes, SigningKey):
-    @classmethod
-    def from_passphrase(cls, passphrase: str) -> PrivateKey:
-        return utils.passphrase_to_private_key(passphrase)
 
     @classmethod
     def from_dict(cls, data: dict, password: str = "") -> PrivateKey:
@@ -56,6 +54,25 @@ class PrivateKey(bytes, SigningKey):
             data = json.loads(f.read())
 
         return PrivateKey.from_dict(data, password)
+
+    @classmethod
+    def from_passphrase(cls, passphrase: str, path: list[int], pwd: str = "") -> PrivateKey:
+        masterSeed = crypto.passphrase_to_seed(passphrase, password=pwd)
+
+        sign = hmac.new('ed25519 seed'.encode('utf-8'), masterSeed, hashlib.sha512).digest()
+        node = {
+            "key": sign[:32],
+            "chainCode": sign[32:]
+        }
+        for index in path:
+            indexBuffer = index.to_bytes(4, byteorder='big')
+            sign = hmac.new(node["chainCode"], b"\x00" + node["key"] + indexBuffer, hashlib.sha512).digest()
+            node = {
+                "key": sign[:32],
+                "chainCode": sign[32:]
+            }
+
+        return PrivateKey(node["key"])
 
     def __init__(self, source) -> None:
         super().__init__(source)
@@ -86,6 +103,7 @@ class PrivateKey(bytes, SigningKey):
         return data
 
 
+
 EMPTY_KEY = PublicKey(b"0" * constants.Length.EDSA_PUBLIC_KEY)
 
 
@@ -93,3 +111,10 @@ if __name__ == "__main__":
     pub_key = PublicKey(bytes.fromhex("a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2"))
     print(pub_key.to_address().to_lsk32())
     print(pub_key)
+    passphrase="economy cliff diamond van multiply general visa picture actor teach cruel tree adjust quit maid hurry fence peace glare library curve soap cube must"
+    path = [44 + 0x80000000, 134 + 0x80000000, 4 + 0x80000000]
+    sphrase="target cancel solution recipe vague faint bomb convince pink vendor fresh patrol"
+    path = [44 + 0x80000000, 134 + 0x80000000, 0 + 0x80000000]
+    print(path)
+    print(PrivateKey.from_passphrase(passphrase, path, "TREZOR").to_public_key().hex())
+    

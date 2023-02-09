@@ -4,33 +4,31 @@ import dingus.codec as codec
 import dingus.crypto as crypto
 import logging
 import json
-from dingus.codec.utils import normalize_bytes
+from typing import TYPE_CHECKING
 from dingus.types.transaction import Transaction
+from dingus.utils import get_address_from_lisk32_address
 from dingus.constants import Length, SignatureTags
 import dingus.network.api as api
 import jsonschema
 import os
-from dingus.constants import Length
-from dingus.codec.json_format import MessageToDict #to decode to hex
+from dingus.codec.json_format import MessageToDict, ParseDict #to decode to hex
 from dingus.types.keys import SigningKey
-from google.protobuf.json_format import  ParseDict
 
 
 class Block(object):
     def __init__(self, properties: dict) -> None:
         self.json_schema = blockSchema
-        jsonschema.validate(properties, self.json_schema)
         self.proto_schema = codec.block.Block()
-        
-        for k, v in properties.items():
-            # header and signature are not set directly
-            if k == "header":
-                continue
-            setattr(self, k, v)
-        
         self.header = BlockHeader(properties['header'])
+        self.assets = [Asset(asset) for asset in properties['assets']]
+        print(properties['transactions'])
+        self.transactions = [Transaction.from_dict(tx) for tx in properties['transactions']]
+    
         properties["header"] = self.header.bytes
-        self.proto_schema = ParseDict(normalize_bytes(properties), self.proto_schema)
+        properties["assets"] = [asset.bytes for asset in self.assets]
+        properties["transactions"] = [tx.bytes for tx in self.transactions]
+        jsonschema.validate(properties, self.json_schema)
+        self.proto_schema = ParseDict(properties, self.proto_schema)
 
     @classmethod
     def from_dict(cls, properties: dict) -> Block:
@@ -65,9 +63,34 @@ class Block(object):
         d["header"] = self.header.to_dict
         return json.dumps(d, indent=4)
 
+class Asset(object):
+    def __init__(self, properties: dict) -> None:
+        self.json_schema = assetSchema
+        jsonschema.validate(properties, self.json_schema)
+        self.proto_schema = codec.block.Asset()
+        self.proto_schema = ParseDict(properties, self.proto_schema)
+
+    @classmethod
+    def from_dict(cls, properties: dict) -> Asset:
+        return Asset(properties)
+
+    @property
+    def bytes(self) -> bytes:
+        return self.proto_schema.SerializeToString()
+
+    @property
+    def to_dict(self) -> dict:
+        return MessageToDict(self.proto_schema)
+
+    def __str__(self) -> str:
+        return json.dumps(self.to_dict, indent=4)
 
 class BlockHeader(object):
     def __init__(self, properties: dict) -> None:
+        if properties["generatorAddress"].startswith("lsk"):
+            properties["generatorAddress"] = get_address_from_lisk32_address(properties["generatorAddress"])
+        if "id" in properties:
+            del properties["id"]
         self.unsigned_json_schema = unsignedBlockHeaderSchema
         self.json_schema = blockHeaderSchema
         self.unsigned_proto_schema = codec.block.Header()
@@ -79,11 +102,52 @@ class BlockHeader(object):
             jsonschema.validate(properties, self.unsigned_json_schema)
             properties["signature"] = b""   
             
-        self.unsigned_proto_schema = ParseDict(normalize_bytes(unsigned_properties), self.unsigned_proto_schema)
-        self.proto_schema = ParseDict(normalize_bytes(properties), self.proto_schema)
-        for k, v in properties.items():
-            setattr(self, k, v)
+        self.unsigned_proto_schema = ParseDict(unsigned_properties, self.unsigned_proto_schema)
+        self.proto_schema = ParseDict(properties, self.proto_schema)
+
+        self.version = int(properties["version"])
+        self.timestamp = int(properties["timestamp"])
+        self.height = int(properties["height"])
+
+        if isinstance(properties["previousBlockID"], str):
+            properties["previousBlockID"] = bytes.fromhex(properties["previousBlockID"])
+        self.previousBlockID = properties["previousBlockID"]
         
+        if isinstance(properties["generatorAddress"], str):
+            properties["generatorAddress"] = bytes.fromhex(properties["generatorAddress"])
+        self.generatorAddress = properties["generatorAddress"]
+        
+        if isinstance(properties["transactionRoot"], str):
+            properties["transactionRoot"] = bytes.fromhex(properties["transactionRoot"])
+        self.transactionRoot = properties["transactionRoot"]
+        
+        if isinstance(properties["assetRoot"], str):
+            properties["assetRoot"] = bytes.fromhex(properties["assetRoot"])
+        self.assetRoot = properties["assetRoot"]
+        
+        if isinstance(properties["eventRoot"], str):
+            properties["eventRoot"] = bytes.fromhex(properties["eventRoot"])
+        self.eventRoot = properties["eventRoot"]
+        
+        if isinstance(properties["stateRoot"], str):
+            properties["stateRoot"] = bytes.fromhex(properties["stateRoot"])
+        self.stateRoot = properties["stateRoot"]
+        
+        self.maxHeightPrevoted = int(properties["maxHeightPrevoted"])
+        self.maxHeightGenerated = int(properties["maxHeightGenerated"])
+        self.impliesMaxPrevotes = bool(properties["impliesMaxPrevotes"])
+        
+        if isinstance(properties["validatorsHash"], str):
+            properties["validatorsHash"] = bytes.fromhex(properties["validatorsHash"])
+        self.validatorsHash = properties["validatorsHash"]
+        
+        if isinstance(properties["aggregateCommit"]["aggregationBits"], str):
+            properties["aggregateCommit"]["aggregationBits"] = bytes.fromhex(properties["aggregateCommit"]["aggregationBits"])
+        if isinstance(properties["aggregateCommit"]["certificateSignature"], str):
+            properties["aggregateCommit"]["certificateSignature"] = bytes.fromhex(properties["aggregateCommit"]["certificateSignature"])
+        properties["aggregateCommit"]["height"] = int(properties["aggregateCommit"]["height"])
+        self.aggregateCommit = properties["aggregateCommit"]
+
         self.unsigned_bytes = self.unsigned_proto_schema.SerializeToString()
 
     @classmethod

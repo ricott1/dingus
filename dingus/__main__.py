@@ -21,13 +21,13 @@ def start():
     )
 
     parser.add_argument(
-        "-E",
-        "--endpoint",
+        "-R",
+        "--request-method",
         type=str,
         nargs=1,
         default=["rpc"],
-        choices=["rpc", "service"],
-        help="specify type of endpoint to use for http requests (rpc or Lisk service)",
+        choices=["rpc", "service", "websocket"],
+        help="specify type of request to use (rpc, Lisk service, websocket)",
     )
 
     parser.add_argument(
@@ -52,6 +52,7 @@ def start():
 
     os.environ["NETWORK"] = args.network[0]
     os.environ["BASE_PATH"] = args.base_path[0]
+    os.environ["REQUEST_METHOD"] = args.request_method[0]
     Path(f"{os.environ['BASE_PATH']}/accounts").mkdir(parents=True, exist_ok=True)
     Path(f"{os.environ['BASE_PATH']}/database").mkdir(parents=True, exist_ok=True)
 

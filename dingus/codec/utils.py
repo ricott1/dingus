@@ -1,25 +1,9 @@
 import os
 import subprocess
+from typing import Any
 from dingus.constants import Length
-import base64
+from google.protobuf.reflection import GeneratedProtocolMessageType
 
-def normalize_bytes(properties: dict) -> None:
-    '''
-    Convert hex encoded bytes to base64 bytes
-    '''
-    for k, v in properties.items():
-        if isinstance(v, bytes):
-            properties[k] = base64.b64encode(v)
-        elif isinstance(v, dict):
-            properties[k] = normalize_bytes(v)
-        elif isinstance(v, list):
-            for i in range(len(v)):
-                if isinstance(v[i], bytes):
-                    v[i] = base64.b64encode(v[i])
-                elif isinstance(v[i], dict):
-                    v[i] = normalize_bytes(v[i])
-            properties[k] = v
-    return properties
 
 def compile_schemas():
     for file in os.listdir("."):
@@ -33,6 +17,17 @@ def compile_schema(schema: str, name: str) -> bytes:
         f.write(schema)
     p = subprocess.run(["protoc", "--python_out=.", filename], stdout=subprocess.PIPE)
     return p.stdout
+
+def parse_from_bytes(proto_schema: GeneratedProtocolMessageType, s: bytes | str) -> Any:
+    if isinstance(s, str):
+        s = bytes.fromhex(s)
+    
+    
+    return proto_schema.FromString(s)
+    for k, v in r.items():
+        if isinstance(v, bytes):
+            r[k] = b64decode(v.encode()).hex()
+    
 
 def json_schema_to_protobuf(schema: str | dict, name: str) -> str:
     import json

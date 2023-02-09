@@ -1,9 +1,9 @@
-from dingus.utils import hash
+from dingus.crypto import hash
 
-LEAF_PREFIX = b"\x00"
-BRANCH_PREFIX = b"\x01"
-INTERNAL_LEAF_PREFIX = b"\x02"
-EMPTY_HASH_PLACEHOLDER_PREFIX = b"\x02"
+LEAF_PREFIX = bytes.fromhex("00")
+BRANCH_PREFIX = bytes.fromhex("01")
+INTERNAL_LEAF_PREFIX = bytes.fromhex("02")
+EMPTY_HASH_PLACEHOLDER_PREFIX = bytes.fromhex("02")
 
 DEFAULT_KEY_LENGTH = 32
 DEFAULT_SUBTREE_MAX_HEIGHT = 8

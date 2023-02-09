@@ -1,7 +1,7 @@
 from typing import Any, Callable
 import math
-from .constants import EMPTY_HASH, LEAF_PREFIX, BRANCH_PREFIX
-from dingus.utils import hash
+from dingus.tree.constants import EMPTY_HASH, LEAF_PREFIX, BRANCH_PREFIX
+from dingus.crypto import hash
 
 
 def merkle_root(data: list[bytes]) -> bytes:
@@ -19,13 +19,13 @@ def merkle_root(data: list[bytes]) -> bytes:
         return EMPTY_HASH
     if size == 1:
         return hash(LEAF_PREFIX + data[0])
-
+    
     # Largest power of two smaller than size
-    k = 2 << (math.floor(math.log2(size - 1)))
+    k = 2 ** (math.floor(math.log2(size - 1)))
     # Split the data array into 2 subtrees. leftTree from index 0 to index k (not included), rightTree for the rest
     leftTree = data[:k]
     rightTree = data[k:]
-    return hash(BRANCH_PREFIX + merkle_root(leftTree), merkle_root(rightTree))
+    return merkle_root(BRANCH_PREFIX + merkle_root(leftTree) + merkle_root(rightTree))
 
 
 def split_index(keys: list[bytes], condition: Callable) -> int:

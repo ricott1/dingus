@@ -8,7 +8,7 @@ from dingus.constants import (
     CHAIN_ID_LENGTH,
     TOKEN_ID_LENGTH,
 )
-from dingus.codec.json_format import MessageToDict
+from dingus.codec.json_format import MessageToDict, ParseDict
 
 from google.protobuf.reflection import GeneratedProtocolMessageType
 import json

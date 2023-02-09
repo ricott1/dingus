@@ -1,17 +1,16 @@
 from __future__ import annotations
 import logging
 import os
+import json
 
 import jsonschema
-from dingus.codec.utils import normalize_bytes
 
 from dingus.types.block import BlockHeader
 import dingus.network.api as api
 import dingus.crypto as crypto
 from dingus.constants import Length, SignatureTags
 import dingus.codec as codec
-from dingus.codec.json_format import MessageToDict #to decode to hex
-from google.protobuf.json_format import  ParseDict
+from dingus.codec.json_format import MessageToDict, ParseDict #to decode to hex
 
 class Certificate(object):
     def __init__(self, properties: dict) -> None:
@@ -26,16 +25,16 @@ class Certificate(object):
             jsonschema.validate(properties, self.unsigned_json_schema)
             properties["signature"] = b""   
             
-        self.unsigned_proto_schema = ParseDict(normalize_bytes(unsigned_properties), self.unsigned_proto_schema)
-        self.proto_schema = ParseDict(normalize_bytes(properties), self.proto_schema)
+        self.unsigned_proto_schema = ParseDict(unsigned_properties, self.unsigned_proto_schema)
+        self.proto_schema = ParseDict(properties, self.proto_schema)
         for k, v in properties.items():
             setattr(self, k, v)
         
         self.unsigned_bytes = self.unsigned_proto_schema.SerializeToString()
 
     def from_block_header(block_header: BlockHeader, endpoint: str = "") -> Certificate:
-        height = block_header.aggregateCommit.height
-        target_header = api.get_block_by_height(height, endpoint)["header"]
+        height = block_header.aggregateCommit["height"]
+        target_header = api.get_block_by_height(height, endpoint)["result"]["header"]
         return Certificate(
             {
                 "blockID": target_header["id"],
@@ -43,8 +42,8 @@ class Certificate(object):
                 "timestamp": target_header["timestamp"],
                 "stateRoot": target_header["stateRoot"],
                 "validatorsHash": target_header["validatorsHash"],
-                "aggregationBits": block_header.aggregateCommit.aggregationBits,
-                "signature": block_header.aggregateCommit.signature
+                "aggregationBits": block_header.aggregateCommit["aggregationBits"],
+                "signature": block_header.aggregateCommit["certificateSignature"]
             }
         )
 
@@ -76,6 +75,9 @@ class Certificate(object):
 
         net_id = bytes.fromhex(os.environ["CHAIN_ID"])
         return crypto.hash(SignatureTags.CERTIFICATE + net_id + self.unsigned_bytes)
+    
+    def __str__(self) -> str:
+        return json.dumps(self.to_dict, indent=4)
     
 unsignedCertificateSchema = {
     "type": "object",

@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import dingus.tree.hasher as hasher
-from .errors import *
-from dingus.utils import hash
-from .constants import (
+from dingus.tree.errors import *
+from dingus.crypto import hash
+from dingus.tree.constants import (
     DEFAULT_KEY_LENGTH,
     EMPTY_VALUE,
     LEAF_PREFIX,
@@ -15,7 +15,7 @@ from .constants import (
     DEFAULT_SUBTREE_MAX_HEIGHT,
     EMPTY_HASH_PLACEHOLDER_PREFIX,
 )
-from .utils import binary_expansion
+from dingus.tree.utils import binary_expansion
 
 
 @dataclass
