@@ -38,7 +38,7 @@ def test_right_witness_from_fixtures():
         _input = [bytes.fromhex(i) for i in case["input"]["values"]]
         _output = bytes.fromhex(case["output"]["merkleRoot"])
         mt = MerkleTree(_input)
-        for n in range(1, len(_input)):
+        for n in range(1, len(_input) + 1):
             partial_mt = MerkleTree(_input[:n])
             right_witness = MerkleTree.get_right_witness(partial_mt.size, _input[n:])
             wit_root = MerkleTree.root_from_right_witness(partial_mt.size, partial_mt.append_path, right_witness)

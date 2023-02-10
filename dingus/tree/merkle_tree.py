@@ -75,7 +75,7 @@ class MerkleTree(object):
         return self.root
 
     @classmethod
-    def get_right_witness(cls, size: int, data: list[bytes]) -> bytes:
+    def get_right_witness(cls, size: int, data: list[bytes]) -> list[bytes]:
         """
         Calculate right witness for input data.
         """
@@ -165,12 +165,3 @@ class MerkleTree(object):
             l += 1
 
         return h
-
-
-if __name__ == "__main__":
-    data = [hash(int.to_bytes(i, 4, "big")) for i in range(100)]
-
-    for N in range(1, 100):
-        print(N)
-        tree = MerkleTree(data[:N])
-        assert tree.root == MerkleTree.merkle_root(data[:N])
