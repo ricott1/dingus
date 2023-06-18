@@ -33,11 +33,59 @@ transferParams = {
     }
 }
 
+crossChainTransferParamsSchema = {
+    "type": "object",
+    "required": [
+        "tokenID",
+        "amount",
+        "receivingChainID",
+        "recipientAddress",
+        "data",
+        "messageFee",
+        "messageFeeTokenID"
+    ],
+    "properties": {
+        "tokenID": {
+            "dataType": "bytes",
+            "length": Length.TOKEN_ID,
+            "fieldNumber": 1
+        },
+        "amount": {
+            "dataType": "uint64",
+            "fieldNumber": 2
+        },
+        "receivingChainID": {
+            "dataType": "bytes",
+            "length": Length.CHAIN_ID,
+            "fieldNumber": 3
+        },
+        "recipientAddress": {
+            "dataType": "bytes",
+            "length": Length.ADDRESS,
+            "fieldNumber": 4
+        },
+        "data": {
+            "dataType": "string",
+            "maxLength": Length.DATA_MAX,
+            "fieldNumber": 5
+        },
+        "messageFee": {
+            "dataType": "uint64",
+            "fieldNumber": 6
+        },
+        "messageFeeTokenID": {
+            "dataType": "bytes",
+            "length": Length.TOKEN_ID,
+            "fieldNumber": 7
+        }
+    }
+}
 
 if __name__ == "__main__":
     from dingus.codec.utils import json_schema_to_protobuf, compile_schema
     json_schemas = {
-        "transfer": transferParams
+        "transfer": transferParams,
+        "crossChainTransfer": crossChainTransferParamsSchema
     }
     for name, js in json_schemas.items():
         proto_schema = json_schema_to_protobuf(js, name)

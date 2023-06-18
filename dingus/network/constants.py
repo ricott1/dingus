@@ -1,22 +1,22 @@
 from enum import Enum
 
 
-ENDPOINTS = {
-    "mainnet": "https://service.lisk.com",
-    "testnet": "https://testnet-service.lisk.com",
-    "devnet": "http://localhost:5001",
+SERVICE_ENDPOINTS = {
+    "mainnet": "https://service.lisk.com/api/v2/",
+    "testnet": "https://testnet-service.lisk.com/api/v2/",
+    "devnet": "http://localhost:5001/api/v2/",
 }
 
 SOCKET_ENDPOINTS = {
-    "mainnet": "wss://service.lisk.com",
-    "testnet": "wss://testnet-service.lisk.com",
-    "devnet": "ws://host.docker.internal:8080",
+    "mainnet": "service.lisk.com",
+    "testnet": "testnet-service.lisk.com",
+    "devnet": "host.docker.internal:8080",
 }
 
 RPC_ENDPOINTS = {
-    "mainnet": "https://rpc.lisk.com",
-    "testnet": "https://testnet-rpc.lisk.com",
-    "devnet": "http://localhost:7887",
+    "mainnet": "206.189.5.168:4002",
+    "testnet": "206.189.5.168:4002",
+    "devnet": "localhost:7887"
 }
 
 

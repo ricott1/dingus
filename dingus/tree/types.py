@@ -49,26 +49,6 @@ class LeafNode(object):
 
 
 @dataclass
-class InternalLeafNode(object):
-    key: bytes
-    value: bytes
-
-    @classmethod
-    def parse(cls, data: bytes, key_length: int = DEFAULT_KEY_LENGTH) -> tuple[bytes, bytes]:
-        key = data[len(INTERNAL_LEAF_PREFIX) : key_length + len(INTERNAL_LEAF_PREFIX)]
-        value = data[key_length + len(INTERNAL_LEAF_PREFIX) :]
-        return (key, value)
-
-    @property
-    def data(self) -> bytes:
-        return INTERNAL_LEAF_PREFIX + self.key + self.value
-
-    @property
-    def hash(self) -> bytes:
-        return hash(self.value)
-
-
-@dataclass
 class BranchNode(object):
     left_hash: bytes
     right_hash: bytes
@@ -211,6 +191,9 @@ class Query(object):
     def __post_init__(self) -> None:
         self.binary_bitmap = binary_expansion(self.bitmap).lstrip("0")
         self.hash = EMPTY_HASH if self.value == EMPTY_VALUE else LeafNode(self.key, self.value).hash
+    
+    def __str__(self) -> str:
+        return f"Query(key={self.key.hex()}, value={self.value.hex()}, bitmap={self.bitmap.hex()})"
 
     @property
     def binary_path(self) -> str:
@@ -249,3 +232,6 @@ class QueryWithProof(Query):
 class Proof(object):
     sibling_hashes: list[bytes]
     queries: list[Query]
+
+    def __str__(self) -> str:
+        return f"Proof({[h.hex() for h in self.sibling_hashes]}, {[str(q) for q in self.queries]})"

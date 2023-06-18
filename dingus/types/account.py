@@ -35,6 +35,11 @@ class Account(object):
             elif type(data["public_key"]) == bytes:
                 data["public_key"] = keys.PublicKey(data["public_key"])
 
+        # fill in missing fields with default values
+        if "nonce" not in data:
+            data["nonce"] = 0
+        if "balance" not in data:
+            data["balance"] = 0
         return Account(**data)
 
     @classmethod

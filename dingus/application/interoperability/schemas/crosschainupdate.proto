@@ -11,17 +11,17 @@ message CrossChainUpdate {
 message CrossChainUpdate_InboxUpdate {
     repeated bytes crossChainMessages = 1;
     repeated bytes messageWitnessHashes = 2;
-    required CrossChainUpdate_InboxUpdate_OutboxRootWitness outboxRootWitness = 3;
+    required CrossChainUpdate_OutboxRootWitness outboxRootWitness = 3;
     }
 
-message CrossChainUpdate_InboxUpdate_OutboxRootWitness {
+message CrossChainUpdate_OutboxRootWitness {
     required bytes bitmap = 1;
     repeated bytes siblingHashes = 2;
     }
 
 message CrossChainUpdate_ActiveValidatorsUpdate {
     repeated bytes blsKeysUpdate = 1;
-    repeated uint64 bftWeightsUpdate = 2;
+    repeated uint64 bftWeightsUpdate = 2 [packed=true];
     required bytes bftWeightsUpdateBitmap = 3;
     }
 

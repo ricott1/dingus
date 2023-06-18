@@ -8,20 +8,20 @@ import dingus.component as component
 class DingusClient(component.ComponentMixin):
     async def start(self) -> None:
         logging.info("Firing up Dingus socket client")
-
-        status = api.network_status()
-        if "data" in status:
-            self.emit_event("network_status_update", status, ["api_response"])
-            os.environ["CHAIN_ID"] = status["data"]["networkIdentifier"]
-            os.environ["BLOCK_TIME"] = str(status["data"]["blockTime"])
-            self.last_update_time = status["meta"]["lastUpdate"]
-
-        fees = api.network_fees()
-        if "data" in fees:
-            os.environ["MIN_FEE_PER_BYTE"] = str(fees["data"]["minFeePerByte"])
-        prices = api.market_prices()
-        if "data" in prices:
-            self.emit_event("market_prices_update", prices["data"], ["api_response"])
+        info = api.get_node_info()
+        if "result" in info:
+            self.emit_event("network_status_update", info, ["api_response"])
+            os.environ["CHAIN_ID"] = info["result"]["chainID"]
+            os.environ["BLOCK_TIME"] = str(info["result"]["genesis"]["blockTime"])
+            self.last_update_time = time.time()
+        
+        fees = api.get_min_fee_per_byte()
+        
+        if "result" in fees:
+            os.environ["MIN_FEE_PER_BYTE"] = str(fees["result"]["minFeePerByte"])
+        
+        price = api.kraken_market_price()
+        self.emit_event("market_prices_update", price, ["api_response"])
 
     async def handle_events(self, events: list[dict]) -> None:
         for event in events:
@@ -63,14 +63,13 @@ class DingusClient(component.ComponentMixin):
 
     async def on_update(self, deltatime: float) -> None:
         if time.time() - self.last_update_time > int(os.environ["BLOCK_TIME"]):
-            status = api.network_status()
-            if "data" in status:
+            status = api.get_node_info()
+            self.last_update_time = time.time()
+            if "result" in status:
                 self.emit_event("network_status_update", status, ["api_response"])
-            if "meta" in status:
-                self.last_update_time = status["meta"]["lastUpdate"]
-                if status["meta"]["lastBlockHeight"] // 20 == 0:
-                    prices = api.market_prices()
-                    if "data" in prices:
-                        self.emit_event(
-                            "market_prices_update", prices["data"], ["api_response"]
-                        )
+                if status["result"]["height"] // 20 == 0:
+                    price = api.kraken_market_price()
+                    self.emit_event("market_prices_update", price, ["api_response"])
+    
+    async def stop(self) -> None:
+        logging.info("Shutting down Dingus socket client")

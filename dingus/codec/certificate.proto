@@ -6,6 +6,6 @@ message Certificate {
     required uint32 timestamp = 3;
     required bytes stateRoot = 4;
     required bytes validatorsHash = 5;
-    required bytes aggregationBits = 6;
+    optional bytes aggregationBits = 6;
     optional bytes signature = 7;
 }

@@ -60,7 +60,9 @@ class SkipMerkleTree(object):
             "update_node_calls": 0,
         }
 
-    async def print(self, subtree: SubTree, preamble: str = " ", hash_length: int = 4) -> str:
+    async def print(self, subtree: SubTree | None = None, preamble: str = " ", hash_length: int = 4) -> str:
+        if subtree is None:
+            subtree = self.root
         BROWN = lambda t: f"\u001b[38;2;{105};{103};{60}m" + t + "\u001b[0m"
         head = f"{preamble*self.subtree_height}R:{subtree.hash.hex()[:hash_length]}\n"
         body = []
@@ -139,7 +141,7 @@ class SkipMerkleTree(object):
         values: list[bytes],
         current_subtree: SubTree,
         height: int,
-        is_deleting: bool = False,
+        is_deleting: bool = True,
     ) -> Coroutine[Any, Any, SubTree]:
 
         self.stats["update_subtree_calls"] += 1
@@ -414,7 +416,6 @@ class SkipMerkleTree(object):
             current_subtree.nodes[i].id = int(max_id)
             max_id += 1
         
-        
         query_height = int(h)
         # target_node = current_node
         target_id = current_node.id
@@ -427,7 +428,7 @@ class SkipMerkleTree(object):
         binary_bitmap = ""
 
         # Calculate ancestor and sibling hashes using the target_node as starting point
-        # Recalculate internal hashes from the stored current_subtree.nodes, while apending to sibling_hashes the one needed in the queried path.
+        # Recalculate internal hashes from the stored current_subtree.nodes, while appending to sibling_hashes the one needed in the queried path.
         for s in reversed(range(1, max(structure) + 1)):
             _nodes = []
             _structure = []
@@ -453,7 +454,7 @@ class SkipMerkleTree(object):
                             sibling_hashes.insert(0, nodes[i + 1].hash)
                     # 'is' operator checks equality of pointers
                     # elif target_node is nodes[i + 1]:
-                    if target_id == nodes[i+1].id:
+                    elif target_id == nodes[i+1].id:
                     # elif (target_node and target_node.hash == nodes[i+1].hash) or (target_node == None and target_node_idx == i+1):
                         ancestor_hashes.insert(0, parent_node.hash)
                         target_id = parent_node.id
@@ -520,11 +521,17 @@ def insert_and_filter_queries(q: QueryWithProof or Query, queries: list[QueryWit
 
 def verify(query_keys: list[bytes], proof: Proof, merkle_root: bytes, key_length: int = DEFAULT_KEY_LENGTH) -> bool:
     if len(query_keys) != len(proof.queries):
+        print("len(query_keys) != len(proof.queries)")
         return False
 
     for key, query in zip(query_keys, proof.queries):
+        # The bitmap does not contain extra leading 0s
+        if query.bitmap[0] == 0:
+            print("query.bitmap[0] == 0")
+            return False
         # q is an inclusion proof for k or a default empty node
         if len(key) != key_length:
+            print("len(key) != key_length")
             return False
         if key == query.key:
             continue
@@ -533,11 +540,12 @@ def verify(query_keys: list[bytes], proof: Proof, merkle_root: bytes, key_length
         common_prefix = os.path.commonprefix([binary_expansion(query.key), binary_expansion(key)])
         if len(query.binary_bitmap) > len(common_prefix):
             # q does not give an non-inclusion proof for k
+            print("len(query.binary_bitmap) > len(common_prefix)")
             return False
-
     
     filtered_queries = []
     filter: dict[bytes, bool] = {}
+    duplicate_queries = {}
     for q in proof.queries:
         # Remove duplicate queries preserving order. 
         # This can happen if the same query is given for different query_keys, as for inclusion proofs or non-inclusion proofs pointing to a leaf node
@@ -547,7 +555,21 @@ def verify(query_keys: list[bytes], proof: Proof, merkle_root: bytes, key_length
             filtered_queries.append(q)
             filter[q.binary_path] = True
         
-    return calculate_root(proof.sibling_hashes, filtered_queries) == merkle_root
+        # Check that if a key appears in several queries, than these queries are exactly the same.
+        if q.key not in duplicate_queries:
+            duplicate_queries[q.key] = q
+        else:
+            duplicate_query = duplicate_queries[q.key]
+            if q.key != duplicate_query.key or q.bitmap != duplicate_query.bitmap or q.value != duplicate_query.value:
+                print("q.key != duplicate_query.key or q.bitmap != duplicate_query.bitmap or q.value != duplicate_query.value")
+                return False
+        
+        
+    if not calculate_root(proof.sibling_hashes, filtered_queries) == merkle_root:
+        print("not calculate_root(proof.sibling_hashes, filtered_queries) == merkle_root")
+        return False
+
+    return True
 
 
 def calculate_root(sibling_hashes: list[bytes], queries: list[Query]) -> bytes:
@@ -566,6 +588,24 @@ def calculate_root(sibling_hashes: list[bytes], queries: list[Query]) -> bytes:
         # 1. sibling is next element of sorted_queries
         if len(sorted_queries) > 0 and q.is_sibling_of(sorted_queries[0]):
             sibling_hash = sorted_queries[0].hash
+            # We are merging two branches.
+            # Check that the bitmap at the merging point is consistent with the nodes type.
+            if sorted_queries[0].hash == EMPTY_HASH:
+                assert q.binary_bitmap[0] == "0"
+            else:
+                assert q.binary_bitmap[0] == "1"
+            if q.hash == EMPTY_HASH:
+                assert sorted_queries[0].binary_bitmap[0] == "0"
+            else:
+                assert sorted_queries[0].binary_bitmap[0] == "1"
+
+            # Check that the bitmap coincide from the merging point up.
+            assert len(q.binary_bitmap) == len(sorted_queries[0].binary_bitmap)
+            if len(q.binary_bitmap):
+                print(f"query: key={q.key.hex()[:4]:4s} bitmap={q.binary_bitmap:12s} - {q.bitmap.hex()}")
+                print(f"sibli: key={sorted_queries[0].key.hex()[:4]:4s} bitmap={sorted_queries[0].binary_bitmap:12s} - {sorted_queries[0].bitmap.hex()}")
+                assert q.binary_bitmap[1:] == sorted_queries[0].binary_bitmap[1:]
+
             del sorted_queries[0]
         # 2. sibling is default empty node
         elif q.binary_bitmap[0] == "0":
@@ -590,3 +630,37 @@ def calculate_root(sibling_hashes: list[bytes], queries: list[Query]) -> bytes:
 
 def is_inclusion_proof(query_key: bytes, query: Query) -> bool:
     return query_key == query.key and query.value != EMPTY_VALUE
+
+
+def create_test_case(n: int, key_length: int = 2) -> list[tuple[bytes, bytes]]:
+    from dingus.crypto import hash
+    keys = sorted([os.urandom(key_length) for _ in range(n)])
+    keys_set = {}
+    for i, key in enumerate(keys):
+        if key in keys_set:
+            keys.pop(i)
+        keys_set[key] = True
+
+    values = [hash(k) for k in keys]
+
+    return (keys, values)
+    
+async def testing():
+    import time
+    initial_keys, initial_values = create_test_case(12)
+    extra_keys, extra_values = initial_keys[:20], initial_values[:20]
+    _smt = SkipMerkleTree()
+    assert _smt.root.hash == EMPTY_HASH
+    start_time = time.time()
+    new_root = await _smt.update(initial_keys, initial_values)
+    assert _smt.root.hash == new_root.hash
+    print(f"create SMT tree with {len(initial_keys)} leaves: {time.time() - start_time:.2f}s")
+
+    start_time = time.time()
+    extra_new_root = await _smt.update(extra_keys, extra_values)
+    assert _smt.root.hash == extra_new_root.hash
+    print(await _smt.print(_smt.root))
+    return _smt
+if __name__ == "__main__":
+    import asyncio
+    asyncio.run(testing())

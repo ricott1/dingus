@@ -1,9 +1,9 @@
-
 syntax = "proto2";
+
 message Transfer {
     required bytes tokenID = 1;
     required uint64 amount = 2;
     required bytes recipientAddress = 3;
     required string data = 4;
-    
-}
+    }
+

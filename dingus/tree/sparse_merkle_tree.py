@@ -1,8 +1,10 @@
-from .constants import BRANCH_PREFIX, DEFAULT_KEY_LENGTH, LEAF_PREFIX, DEFAULT_HASHER
+from .constants import BRANCH_PREFIX, DEFAULT_KEY_LENGTH, EMPTY_HASH, LEAF_PREFIX, DEFAULT_HASHER
 from .types import LeafNode, BranchNode, EmptyNode, TreeNode
 from .utils import split_index, is_bit_set
 from .errors import *
 from typing import Coroutine, Any
+import os
+from dingus.crypto import hash
 
 from dingus.db import InMemoryDB, RocksDB
 
@@ -315,3 +317,51 @@ class SparseMerkleTree(object):
         self.root = bottom_node
         return bottom_node
 
+def create_test_case(n: int, key_length: int = 2) -> list[tuple[bytes, bytes]]:
+    keys = sorted([hash(i.to_bytes(2))[:key_length] for i in range(n)])
+    for i in range(len(keys)):
+        print(keys[i].hex())
+        keys[i] = (keys[i][0] & 0x7F).to_bytes(1) + b"".join([b.to_bytes(1) for b in keys[i][1:]])
+        print(keys[i].hex())
+
+    values = [hash(k) for k in keys]
+
+    return (keys, values)
+    
+async def testing():
+    import time
+    initial_keys, initial_values = create_test_case(8)
+    _smt = SparseMerkleTree(2)
+    assert _smt.root.hash == EMPTY_HASH
+    start_time = time.time()
+    new_root = await _smt.update(initial_keys, initial_values)
+    assert _smt.root.hash == new_root.hash
+    print(f"create SMT tree with {len(initial_keys)} leaves: {time.time() - start_time:.2f}s")
+    from .skip_merkle_tree import SkipMerkleTree, verify, binary_expansion
+    _skmt = SkipMerkleTree(2)
+    assert _skmt.root.hash == EMPTY_HASH
+    start_time = time.time()
+    new_root = await _skmt.update(initial_keys, initial_values)
+    assert _skmt.root.hash == new_root.hash == _smt.root.hash
+    print(await _smt.print(_smt.root))
+
+
+    query_keys = initial_keys[4:6]
+    proof = await _skmt.generate_proof(query_keys)
+    for sh in proof.sibling_hashes:
+        print(sh.hex())
+    for q in proof.queries:
+        print(f"query: {q.key.hex()}:{q.value.hex()[:4]} bm:{q.binary_bitmap}=={q.bitmap.hex()}")
+    
+    proof.queries[0].bitmap = b"\x16\x00" 
+    proof.queries[0].binary_bitmap = binary_expansion(proof.queries[0].bitmap).lstrip("0")
+    for q in proof.queries:
+        print(f"query: {q.key.hex()}:{q.value.hex()[:4]} bm:{q.binary_bitmap}=={q.bitmap.hex()}")
+
+    check = verify(query_keys, proof, _skmt.root.hash, 2)
+    assert check
+    print(f"verify proof: {check}")
+    return _smt
+if __name__ == "__main__":
+    import asyncio
+    asyncio.run(testing())

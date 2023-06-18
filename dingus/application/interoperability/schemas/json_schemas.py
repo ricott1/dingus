@@ -321,7 +321,9 @@ crossChainMessageSchema = {
 
 
 if __name__ == "__main__":
-    from dingus.codec.utils import json_schema_to_protobuf, compile_schema
+    from dingus.codec.utils import json_schema_to_protobuf, compile_schema,compile_schemas
+    # compile_schemas()
+    
     json_schemas = {
         "registerSidechain": sidechainRegistrationParams,
         "registerMainchain": mainchainRegistrationParams,

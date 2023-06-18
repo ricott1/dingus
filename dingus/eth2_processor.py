@@ -172,7 +172,7 @@ class Validator(Container):
     pubkey: BLSPubkey
     withdrawal_credentials: Hash  # Commitment to pubkey for withdrawals and transfers
     effective_balance: Gwei  # Balance at stake
-    slashed: boolean
+    slashed: bool
     # Status epochs
     activation_eligibility_epoch: Epoch  # When criteria for activation were met
     activation_epoch: Epoch
@@ -202,12 +202,12 @@ class AttestationData(Container):
     # Crosslink vote
     crosslink: Crosslink
 
-
+å
 #### `AttestationDataAndCustodyBit`
 
 class AttestationDataAndCustodyBit(Container):
     data: AttestationData
-    custody_bit: bit  # Challengeable bit (SSZ-bool, 1 byte) for the custody of crosslink data
+    custody_bit: bytes  # Challengeable bit (SSZ-bool, 1 byte) for the custody of crosslink data
 
 
 #### `IndexedAttestation`

@@ -132,3 +132,10 @@ def get_address_from_lisk32_address(base32_address: str) -> bytes:
     integer_sequence = [LISK32_CHARSET.find(char) for char in address_substring_array]
 
     return bytes(convert_uint_array(integer_sequence, 5, 8))
+
+
+def field_number_to_substore_prefix(field_number: int) -> bytes:
+    "Converts input to biunary, reverts binary string, and converts it to bytes"
+    bin_field_number = bin(field_number)[2:].zfill(16)[::-1]
+    print(f"field_number = {field_number:2d} ==> {bin_field_number} ==> {int(bin_field_number, 2).to_bytes(2, byteorder='big').hex()}")
+    return int(bin_field_number, 2).to_bytes(2, byteorder='big')

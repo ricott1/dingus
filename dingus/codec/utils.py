@@ -22,11 +22,7 @@ def parse_from_bytes(proto_schema: GeneratedProtocolMessageType, s: bytes | str)
     if isinstance(s, str):
         s = bytes.fromhex(s)
     
-    
     return proto_schema.FromString(s)
-    for k, v in r.items():
-        if isinstance(v, bytes):
-            r[k] = b64decode(v.encode()).hex()
     
 
 def json_schema_to_protobuf(schema: str | dict, name: str) -> str:
@@ -71,6 +67,8 @@ def property_to_message(key, value, name):
         'object': 'message',
         'uint32': 'uint32',
         'uint64': 'uint64',
+        'sint32': 'sint32',
+        'sint64': 'sint64',
         'string': 'string',
         'boolean': 'bool',
         'bytes': 'bytes',
@@ -104,48 +102,49 @@ repeated {message_name} {key} = {value["fieldNumber"]};
 
 
 if __name__ == '__main__':
-    msg = json_schema_to_protobuf({  
-        "type": "object",
-        "required": ["ownChainID", "ownName", "mainchainValidators", "mainchainCertificateThreshold"],
-        "properties": {
-            "ownChainID": {
-                "dataType": "bytes",
-                "length": Length.CHAIN_ID,
-                "fieldNumber": 1
-            },
-            "ownName": {
-                "dataType": "string",
-                "minLength": Length.CHAIN_NAME_MIN,
-                "maxLength": Length.CHAIN_NAME_MAX,
-                "fieldNumber": 2
-            },
-            "mainchainValidators": {
-                "type": "array",
-                "minItems": 1,
-                "maxItems": 101,
-                "fieldNumber": 3,
-                "items": {
-                    "type": "object",
-                    "required": ["blsKey", "bftWeight"],
-                    "properties": {
-                        "blsKey": {
-                            "dataType": "bytes",
-                            "length": Length.BLS_PUBLIC_KEY,
-                            "fieldNumber": 1
-                        },
-                        "bftWeight": {
-                            "dataType": "uint64",
-                            "fieldNumber": 2
-                        }
-                    }
-                }
-            },
-            "mainchainCertificateThreshold": {
-                "dataType": "uint64",
-                "fieldNumber": 4
-            },
-        }
-    }, "mainchainRegistrationMessage")  
-    print(msg)
-    compile_schema(msg, "mainchainRegistrationMessage")
+    compile_schemas()
+    # msg = json_schema_to_protobuf({  
+    #     "type": "object",
+    #     "required": ["ownChainID", "ownName", "mainchainValidators", "mainchainCertificateThreshold"],
+    #     "properties": {
+    #         "ownChainID": {
+    #             "dataType": "bytes",
+    #             "length": Length.CHAIN_ID,
+    #             "fieldNumber": 1
+    #         },
+    #         "ownName": {
+    #             "dataType": "string",
+    #             "minLength": Length.CHAIN_NAME_MIN,
+    #             "maxLength": Length.CHAIN_NAME_MAX,
+    #             "fieldNumber": 2
+    #         },
+    #         "mainchainValidators": {
+    #             "type": "array",
+    #             "minItems": 1,
+    #             "maxItems": 101,
+    #             "fieldNumber": 3,
+    #             "items": {
+    #                 "type": "object",
+    #                 "required": ["blsKey", "bftWeight"],
+    #                 "properties": {
+    #                     "blsKey": {
+    #                         "dataType": "bytes",
+    #                         "length": Length.BLS_PUBLIC_KEY,
+    #                         "fieldNumber": 1
+    #                     },
+    #                     "bftWeight": {
+    #                         "dataType": "uint64",
+    #                         "fieldNumber": 2
+    #                     }
+    #                 }
+    #             }
+    #         },
+    #         "mainchainCertificateThreshold": {
+    #             "dataType": "uint64",
+    #             "fieldNumber": 4
+    #         },
+    #     }
+    # }, "mainchainRegistrationMessage")  
+    # print(msg)
+    # compile_schema(msg, "mainchainRegistrationMessage")
 

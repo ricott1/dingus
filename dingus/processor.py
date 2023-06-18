@@ -11,7 +11,7 @@ class Processor(object):
 
     async def stop(self, *args):
         for comp in self.components:
-            comp.stop()
+            await comp.stop()
         tasks = asyncio.all_tasks(self.event_loop)
         if tasks:
             print("Terminating tasks", tasks)
@@ -19,7 +19,7 @@ class Processor(object):
 
     async def start(self) -> None:
         await asyncio.gather(
-            *[asyncio.create_task(comp.start()) for comp in self.components]
+            *[comp.start() for comp in self.components]
         )
         deltatime = 0.02
         exit_flag = False
@@ -28,7 +28,7 @@ class Processor(object):
                 # for comp in self.components:
                 #     await comp.on_update(deltatime)
                 await asyncio.gather(
-                    *[asyncio.create_task(comp.on_update(deltatime)) for comp in self.components]
+                    *[comp.on_update(deltatime) for comp in self.components]
                 )
                 events = []
                 for comp in self.components:

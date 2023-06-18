@@ -124,8 +124,11 @@ class TUI(component.ComponentMixin, urwid.Pile):
         self.loop.start()
         self.event_loop.set_exception_handler(self._exception_handler)
 
+    # async def stop(self) -> None:
+    #     self.loop.stop()
+
     def _exception_handler(self, loop, context):
-        self.stop()
+        self._stop()
         exc = context.get("exception")
         if exc:
             print("Traceback: ", traceback.format_exc())
@@ -136,7 +139,10 @@ class TUI(component.ComponentMixin, urwid.Pile):
         else:
             loop.default_exception_handler(context)
 
-    def stop(self):
+    async def stop(self) -> None:
+        self._stop()
+
+    def _stop(self):
         try:
             self.loop.stop()
         except AttributeError:
@@ -792,11 +798,11 @@ class AccountInfo(urwid.Pile):
                 "response_name": "response_account_info",
             }
             self.parent.emit_event("request_account", data, ["user_input"])
-        elif event.name == "market_prices_update":
-            if event.data:
-                for feed in event.data:
-                    self.price_feeds[feed["code"]] = float(feed["rate"])
-                self.update_header()
+        # elif event.name == "market_prices_update":
+        #     if event.data:
+        #         for feed in event.data:
+        #             self.price_feeds[feed["code"]] = float(feed["rate"])
+        #         self.update_header()
         elif (
             event.name == "response_account_info"
             and "summary" in event.data

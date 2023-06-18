@@ -33,6 +33,7 @@ class PublicKey(bytes, VerifyKey):
 
 
 class PrivateKey(bytes, SigningKey):
+    DEFAULT_DERIVATION_PATH = [44 + 0x80000000, 134 + 0x80000000, 0x80000000]
 
     @classmethod
     def from_dict(cls, data: dict, password: str = "") -> PrivateKey:
@@ -56,7 +57,11 @@ class PrivateKey(bytes, SigningKey):
         return PrivateKey.from_dict(data, password)
 
     @classmethod
-    def from_passphrase(cls, passphrase: str, path: list[int], pwd: str = "") -> PrivateKey:
+    def random(cls) -> PrivateKey:
+        return PrivateKey(os.urandom(32))
+
+    @classmethod
+    def from_passphrase(cls, passphrase: str, path: list[int] = DEFAULT_DERIVATION_PATH, pwd: str = "") -> PrivateKey:
         masterSeed = crypto.passphrase_to_seed(passphrase, password=pwd)
 
         sign = hmac.new('ed25519 seed'.encode('utf-8'), masterSeed, hashlib.sha512).digest()
@@ -105,7 +110,7 @@ class PrivateKey(bytes, SigningKey):
 
 
 EMPTY_KEY = PublicKey(b"0" * constants.Length.EDSA_PUBLIC_KEY)
-
+INVALID_BLS_KEY = b"\00" * 48
 
 if __name__ == "__main__":
     pub_key = PublicKey(bytes.fromhex("a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2"))

@@ -21,8 +21,12 @@ class Block(object):
         self.proto_schema = codec.block.Block()
         self.header = BlockHeader(properties['header'])
         self.assets = [Asset(asset) for asset in properties['assets']]
-        print(properties['transactions'])
-        self.transactions = [Transaction.from_dict(tx) for tx in properties['transactions']]
+        self.transactions = []
+        for tx in properties['transactions']:
+            try:
+                self.transactions.append(Transaction.from_dict(tx) )
+            except:
+                continue
     
         properties["header"] = self.header.bytes
         properties["assets"] = [asset.bytes for asset in self.assets]
@@ -169,21 +173,18 @@ class BlockHeader(object):
     @property
     def is_signed(self) -> bool:
         return len(self.proto_schema.signature) > 0
-    
-    @property
-    def signing_bytes(self) -> bytes:
-        if "CHAIN_ID" not in os.environ:
-            logging.warning("Cannot get signing bytes, chain ID not set.")
-            return
-        net_id = os.environ["CHAIN_ID"]
-        return crypto.hash(SignatureTags.BLOCK_HEADER + net_id + self.unsigned_bytes)
 
-    def sign(self, sk: SigningKey) -> BlockHeader:
-        if "CHAIN_ID" not in os.environ:
-            logging.warning("Cannot sign block header, network ID not set.")
-            return
+    def signing_bytes(self, chainID: bytes) -> bytes:
+        return crypto.hash(SignatureTags.BLOCK_HEADER + chainID + self.unsigned_bytes)
 
-        signature = sk.sign(self.signing_bytes).signature
+    def sign(self, sk: SigningKey, chainID: bytes = b"") -> BlockHeader:
+        if not chainID:
+            if "CHAIN_ID" not in os.environ:
+                logging.warning("Cannot sign block header, network ID not set.")
+                return
+            chainID = bytes.fromhex(os.environ["CHAIN_ID"])
+
+        signature = sk.sign(self.signing_bytes(chainID)).signature
         self.proto_schema.signature = signature
         self.signature = signature
         return self

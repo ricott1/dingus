@@ -32,7 +32,10 @@ class Transaction(object):
         elif isinstance(properties["senderPublicKey"], bytes):
             self.senderPublicKey = properties["senderPublicKey"]
 
-        self.params = Params(properties['module'], properties['command'], properties["params"])
+        if type(properties["params"]) == bytes:
+            self.params = Params.from_bytes(properties["module"], properties["command"], properties["params"])
+        else:
+            self.params = Params(properties['module'], properties['command'], properties["params"])
         self.signatures = []
         for sig in properties["signatures"]:
             if isinstance(sig, str):
@@ -49,11 +52,20 @@ class Transaction(object):
 
     @classmethod
     def from_dict(cls, properties: dict) -> Transaction:
+        if "signatures" not in properties:
+            properties["signatures"] = []
         return Transaction(properties)
     
     @classmethod
     def from_bytes(cls, tx_bytes: bytes) -> Transaction:
-        return parse_from_bytes(codec.transaction.Transaction, tx_bytes)
+        properties = MessageToDict(parse_from_bytes(codec.transaction.Transaction, tx_bytes))
+        
+        if "signatures" not in properties:
+            properties["signatures"] = []
+        if type(properties["params"]) == str:
+            properties["params"] = bytes.fromhex(properties["params"])
+        properties["params"] = Params.from_bytes(properties["module"], properties["command"], properties["params"])
+        return Transaction(properties)
 
     @property
     def bytes(self) -> bytes:
@@ -71,21 +83,17 @@ class Transaction(object):
     def is_signed(self) -> bool:
         return len(self.proto_schema.signatures) > 0
     
-    @property
-    def signing_bytes(self) -> bytes:
-        if "CHAIN_ID" not in os.environ:
-            logging.warning("Cannot get signing bytes, chain ID not set.")
-            return bytes()
+    def signing_bytes(self, chainID: bytes) -> bytes:
+        return crypto.hash(SignatureTags.TRANSACTION + chainID + self.unsigned_bytes)
 
-        net_id = bytes.fromhex(os.environ["CHAIN_ID"])
-        return crypto.hash(SignatureTags.TRANSACTION + net_id + self.unsigned_bytes)
+    def sign(self, sk: SigningKey, chainID: bytes = b"") -> Transaction:
+        if not chainID:
+            if "CHAIN_ID" not in os.environ:
+                logging.warning("Cannot sign transaction, chain ID not set.")
+                return
+            chainID = bytes.fromhex(os.environ["CHAIN_ID"])
 
-    def sign(self, sk: SigningKey) -> Transaction:
-        if "CHAIN_ID" not in os.environ:
-            logging.warning("Cannot sign transaction, network ID not set.")
-            return
-
-        signature = sk.sign(self.signing_bytes).signature
+        signature = sk.sign(self.signing_bytes(chainID)).signature
         self.proto_schema.signatures.extend([signature])
         self.signatures.append(signature)
         return self
@@ -106,9 +114,10 @@ class Params(object):
             properties = bytes.fromhex(properties)
         self.proto_schema = params_proto_schemas[module][command]()
         if isinstance(properties, bytes):
-            self.proto_schema.ParseFromString(properties)
-            properties = MessageToDict(self.proto_schema)
+            properties = MessageToDict(parse_from_bytes(params_proto_schemas[module][command], properties))
         self.json_schema = params_json_schemas[module][command]
+        # for k, v in properties.items():
+        #     print(k, type(v))
         jsonschema.validate(properties, self.json_schema)
         
         self.proto_schema = ParseDict(properties, self.proto_schema)
@@ -121,7 +130,7 @@ class Params(object):
     
     @classmethod
     def from_bytes(cls, module: str, command: str, params_bytes: bytes) -> Params:
-        return parse_from_bytes(params_proto_schemas[module][command], params_bytes)
+        return Params(module, command, MessageToDict(parse_from_bytes(params_proto_schemas[module][command], params_bytes)))
     
     @property
     def to_dict(self) -> dict:
@@ -134,14 +143,27 @@ from dingus.application.interoperability.schemas import json as interop_json
 from dingus.application.interoperability.schemas import proto as interop_proto
 from dingus.application.token.schemas import json as token_json
 from dingus.application.token.schemas import proto as token_proto
+from dingus.application.legacy.schemas import json as legacy_json
+from dingus.application.legacy.schemas import proto as legacy_proto
+from dingus.application.pos.schemas import json as pos_json
+from dingus.application.pos.schemas import proto as pos_proto
+from dingus.application.cloak.schemas import json as cloak_json
+from dingus.application.cloak.schemas import proto as cloak_proto
+
 
 params_json_schemas = {
     "token": token_json,
-    "interoperability": interop_json
+    "interoperability": interop_json,
+    "legacy": legacy_json,
+    "pos": pos_json,
+    "cloak": cloak_json
 }
 params_proto_schemas = {
     "token": token_proto,
-    "interoperability": interop_proto
+    "interoperability": interop_proto,
+    "legacy": legacy_proto,
+    "pos": pos_proto,
+    "cloak": cloak_proto
 }
 
 transactionSchema = {

@@ -29,7 +29,7 @@ def start():
         choices=["rpc", "service", "websocket"],
         help="specify type of request to use (rpc, Lisk service, websocket)",
     )
-
+    
     parser.add_argument(
         "-P",
         "--base-path",

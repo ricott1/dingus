@@ -37,4 +37,5 @@ class Length(int, enum.Enum):
     MODULE_NAME_MAX = 32
     BLS_PUBLIC_KEY = 48
     BLS_SIGNATURE = 96
+    PROOF_OF_POSSESSION = 96
     DATA_MAX = 64

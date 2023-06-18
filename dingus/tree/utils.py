@@ -45,6 +45,7 @@ def split_keys_index(keys: list[bytes], byte_idx: int, target: int) -> int:
 def is_bit_set(bits: bytes, i: int) -> bool:
     shifted = bits[i // 8] << (i % 8)
     BIT_COMP = int.from_bytes(b"\x80", "big")
+    
     return (shifted & BIT_COMP) == BIT_COMP
 
 

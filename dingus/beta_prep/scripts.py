@@ -1,4 +1,6 @@
 import json
+import math
+import os
 import random
 import time
 from dingus import crypto
@@ -10,6 +12,7 @@ from dingus.types.keys import PrivateKey, PublicKey, Address, INVALID_BLS_KEY
 from dingus.codec.json_format import MessageToDict, ParseDict  # to decode to hex
 import dingus.utils as utils
 import dingus.network.api as api
+import dingus.tree as tree
 
 
 def register_mainchain() -> Transaction:
@@ -22,6 +25,8 @@ def register_mainchain() -> Transaction:
         for v in bft_params["validators"]
     ], key=lambda v: v["blsKey"])
     mainchain_validators = [v for v in mainchain_validators if v["blsKey"] != INVALID_BLS_KEY]
+    if not mainchain_validators:
+        raise Exception("No valid validators found in mainchain.")
     mainchain_certificate_threshold = bft_params["certificateThreshold"]
 
     nonce = int(api.get_auth_account(user_key.to_public_key().to_address().to_lsk32(), sidechain_rpc_endpoint)["result"]["nonce"])
@@ -56,7 +61,7 @@ def register_mainchain() -> Transaction:
 
     from dingus.crypto import signBLS, createAggSig
 
-    validators_data = json.loads(open("./interop_testing/inverno/dev-validators.json", "r").read())
+    validators_data = json.loads(open("./sidechain/dev-validators.json", "r").read())
     sidechain_validator_keys = [
         {
             "blsKey": bytes.fromhex(v["plain"]["blsKey"]),
@@ -110,7 +115,7 @@ def register_sidechain() -> Transaction:
         "module": "interoperability",
         "command": "registerSidechain",
         "nonce": nonce,
-        "fee": 1515000000,
+        "fee": 1070000000,
         "senderPublicKey": user_key.to_public_key(),
         "params": {
             "chainID": bytes.fromhex(SIDECHAIN_ID),
@@ -122,14 +127,14 @@ def register_sidechain() -> Transaction:
     }
 
     trs = Transaction.from_dict(trs_dict)
-    trs.sign(user_key, bytes.fromhex("03000000"))
+    trs.sign(user_key, bytes.fromhex(MAINCHAIN_ID))
     return trs
 
 def token_transfer(chain: str = "mainchain") -> Transaction:
     if chain == "mainchain":
         priv_key = mainchain_key_val
         endpoint = mainchain_rpc_endpoint
-        chainID = "03000000"
+        chainID = MAINCHAIN_ID
     else:
         priv_key = sidechain_key_val
         endpoint = sidechain_rpc_endpoint
@@ -142,12 +147,47 @@ def token_transfer(chain: str = "mainchain") -> Transaction:
         "command": "transfer",
         "senderPublicKey": pub_key,
         "nonce": nonce,
-        "fee": 26299416,
+        "fee": 7000000,
         "params": {
             "tokenID": bytes.fromhex(f"{chainID}00000000"),
-            "amount": 500000000000,
+            "amount": 900000000,
             "recipientAddress": user_key.to_public_key().to_address(),
             "data": "Un dono per me.",
+        },
+        "signatures": [],
+    }
+    trs = Transaction.from_dict(params)
+    trs.sign(priv_key, bytes.fromhex(chainID))
+    return trs
+
+def cross_chain_token_transfer(chain: str = "mainchain") -> Transaction:
+    if chain == "mainchain":
+        priv_key = mainchain_key_val
+        endpoint = mainchain_rpc_endpoint
+        chainID = MAINCHAIN_ID
+        receiving_chain_ID = bytes.fromhex(SIDECHAIN_ID)
+    else:
+        priv_key = sidechain_key_val
+        endpoint = sidechain_rpc_endpoint
+        chainID = SIDECHAIN_ID
+        receiving_chain_ID = bytes.fromhex(MAINCHAIN_ID)
+
+    pub_key = priv_key.to_public_key()
+    nonce = int(api.get_auth_account(pub_key.to_address().to_lsk32(), endpoint)["result"]["nonce"])
+    params = {
+        "module": "token",
+        "command": "transferCrossChain",
+        "senderPublicKey": pub_key,
+        "nonce": nonce,
+        "fee": 50000000,
+        "params": {
+            "tokenID": bytes.fromhex(f"0300000000000000"),
+            "amount": 500000000,
+            "receivingChainID": receiving_chain_ID,
+            "recipientAddress": user_key.to_public_key().to_address(),
+            "data": "Un crosschaindono per me.",
+            "messageFee": 10000000,
+            "messageFeeTokenID": bytes.fromhex(f"0300000000000000"),
         },
         "signatures": [],
     }
@@ -159,7 +199,7 @@ def token_transfer(chain: str = "mainchain") -> Transaction:
 def register_validator(chain: str = "mainchain") -> Transaction:
     if chain == "mainchain":
         endpoint = mainchain_rpc_endpoint
-        chainID = "03000000"
+        chainID = MAINCHAIN_ID
     else:
         endpoint = sidechain_rpc_endpoint
         chainID = SIDECHAIN_ID
@@ -189,7 +229,7 @@ def register_validator(chain: str = "mainchain") -> Transaction:
 def stake(_from: PrivateKey, _to: Address, amount: int = 100000000000, chain: str = "mainchain") -> Transaction:
     if chain == "mainchain":
         endpoint = mainchain_rpc_endpoint
-        chainID = "03000000"
+        chainID = MAINCHAIN_ID
     else:
         endpoint = sidechain_rpc_endpoint
         chainID = SIDECHAIN_ID
@@ -218,42 +258,104 @@ def stake(_from: PrivateKey, _to: Address, amount: int = 100000000000, chain: st
     trs.sign(_from, bytes.fromhex(chainID))
     return trs
 
-def ccu(chain: str = "mainchain") -> Transaction:
+def ccu(chain: str = "mainchain", with_ccms: bool = False) -> Transaction:
     if chain == "mainchain":
         priv_key = mainchain_key_val
         endpoint = mainchain_rpc_endpoint
+        local_endpoint = sidechain_rpc_endpoint
         sending_chain_id = bytes.fromhex(SIDECHAIN_ID)
-        receiving_chain_id = bytes.fromhex("03000000")
+        receiving_chain_id = bytes.fromhex(MAINCHAIN_ID)
         command = "submitMainchainCrossChainUpdate"
-        certificate = api.get_last_valid_certificate(sidechain_rpc_endpoint, mainchain_rpc_endpoint)
+        try:
+            certificate = api.get_last_valid_certificate(sidechain_rpc_endpoint, mainchain_rpc_endpoint)
+        except:
+            certificate = api.get_last_certificate(sidechain_rpc_endpoint)
         bft_params = api.get_bft_parameters_by_height(certificate.height, sidechain_rpc_endpoint)["result"]
+        observer_json = "sidechain/observer.json"
     else:
         priv_key = sidechain_key_val
         endpoint = sidechain_rpc_endpoint
-        sending_chain_id = bytes.fromhex("03000000")
+        local_endpoint = mainchain_rpc_endpoint
+        sending_chain_id = bytes.fromhex(MAINCHAIN_ID)
         receiving_chain_id = bytes.fromhex(SIDECHAIN_ID)
         command = "submitSidechainCrossChainUpdate"
-        certificate = api.get_last_valid_certificate(mainchain_rpc_endpoint, sidechain_rpc_endpoint)
+        try:
+            certificate = api.get_last_valid_certificate(mainchain_rpc_endpoint, sidechain_rpc_endpoint)
+        except:
+            certificate = api.get_last_certificate(mainchain_rpc_endpoint)
         bft_params = api.get_bft_parameters_by_height(certificate.height, mainchain_rpc_endpoint)["result"]
+        observer_json = "mainchain/observer.json"
 
     pub_key = priv_key.to_public_key()
     certificate_threshold = bft_params["certificateThreshold"]
     nonce = int(api.get_auth_account(pub_key.to_address().to_lsk32(), endpoint)["result"]["nonce"])
-    last_certified_validators = api.get_chain_validators(sending_chain_id.hex(), endpoint)["result"]
-    current_validators = sorted([
-        { 
-            "blsKey": bytes.fromhex(v["blsKey"]),
-            "bftWeight": int(v["bftWeight"]),
-            
-        } for v in last_certified_validators["activeValidators"]], key=lambda validator: validator["blsKey"])
     new_validators = sorted([
         {
             "blsKey": bytes.fromhex(v["blsKey"]),
             "bftWeight": int(v["bftWeight"]),
         } for v in bft_params["validators"]], key=lambda validator: validator["blsKey"])
+    try:
+        last_certified_validators = api.get_chain_validators(sending_chain_id.hex(), endpoint)["result"]
+        current_validators = sorted([
+        { 
+            "blsKey": bytes.fromhex(v["blsKey"]),
+            "bftWeight": int(v["bftWeight"]),
+            
+        } for v in last_certified_validators["activeValidators"]], key=lambda validator: validator["blsKey"])
+    except:
+        current_validators = new_validators
+    
     validators_update = get_active_validators_update(current_validators, new_validators)
-    print("Validators update: ", validators_update)
-    # validators_update["blsKeysUpdate"] = [bytes.fromhex("02") * 48]
+  
+    print(json.dumps(api.get_channel(receiving_chain_id.hex(), local_endpoint), indent=4))
+
+    if with_ccms:
+        with open(observer_json, "r") as f:
+            observer = json.load(f)
+        ccms = [bytes.fromhex(event["data"])[2:] for event in observer["ccms"] if (event["name"] == "ccmSendSuccess" ) ]
+        print("\nCCMs: ", ccms)
+        outbox_tree = tree.MerkleTree([crypto.hash(ccm) for ccm in ccms])
+        print("\ntree", outbox_tree.root.hex(), [h.hex() for h in outbox_tree.append_path])
+        # outbox_tree = tree.MerkleTree([ccm for ccm in ccms])
+        # print("\ntree", outbox_tree.root.hex(), [h.hex() for h in outbox_tree.append_path])
+        # FIXME: cant get same outbox root from tree and state
+
+        ccm_witness = []
+        query_key = "83ed0d25" + "0000" + crypto.hash(receiving_chain_id).hex()
+        inclusion_proof = api.get_inclusion_proof([query_key], local_endpoint)["result"]["proof"]
+        # print(crypto.hash(bytes.fromhex("0a20") + outbox_tree.root).hex())
+        # print(crypto.hash(bytes.fromhex("0a20e314d00f659b5a6549fb849716c0eb76e2030a6e0a74fb836ab7306f5981a8e0")).hex())
+        # print(api.get_inclusion_proof([query_key], local_endpoint)["result"]["proof"])
+        assert crypto.hash(bytes.fromhex("0a20") + outbox_tree.root).hex() == inclusion_proof["queries"][0]["value"]
+
+        inclusion_proofs = observer["inclusionProofs"]
+        for p in inclusion_proofs:
+            if p["height"] == certificate.height:
+                inclusion_proof = p["proof"]
+                break
+        else:
+            raise Exception("Inclusion proof not found for height", certificate.height)
+
+        bitmap = inclusion_proof["queries"][0]["bitmap"]
+        
+        outbox_witness = {
+            "bitmap": int(bitmap, 2).to_bytes(math.ceil(len(bitmap) / 8), "big"),
+            "siblingHashes": [bytes.fromhex(h) for h in inclusion_proof["siblingHashes"]]
+        }
+        queries = [tree.Query(bytes.fromhex(q["key"]), bytes.fromhex(q["value"]), int(q["bitmap"], 2).to_bytes(math.ceil(len(bitmap) / 8), "big")) for q in inclusion_proof["queries"]]
+        proof = tree.Proof([bytes.fromhex(h) for h in inclusion_proof["siblingHashes"]], queries)
+        input(proof)
+        check = tree.smt_verify([queries[0].key], proof, bytes.fromhex(certificate.stateRoot), key_length=38)
+        print("check", check)
+        print("certificate state root", certificate.stateRoot)
+        input()
+    else:
+        ccms = []
+        ccm_witness = []
+        outbox_witness = {
+            "bitmap": b"",
+            "siblingHashes": []
+        }
     
     trs_dict = {
         "module": "interoperability",
@@ -267,19 +369,32 @@ def ccu(chain: str = "mainchain") -> Transaction:
             "activeValidatorsUpdate": validators_update,
             "certificateThreshold": certificate_threshold,
             "inboxUpdate": {
-                "crossChainMessages": [],
-                "messageWitnessHashes": [],
-                "outboxRootWitness": {
-                    "bitmap": b"",
-                    "siblingHashes": []
-                }
+                "crossChainMessages": ccms,
+                "messageWitnessHashes": ccm_witness,
+                "outboxRootWitness": outbox_witness
             },
         },
         "signatures": [],
     }
+    
     trs = Transaction.from_dict(trs_dict)
     trs.sign(priv_key, receiving_chain_id)
     return trs
+
+def certificate_test_suite() -> None:
+    print("\n\n --- Certificate SUITE --- \n")
+    trs = ccu("mainchain")
+    print("Mainchain ccu:", trs)
+    # print("Certificate", Certificate.from_bytes(trs.params.certificate))
+    print("\nID:", trs.id.hex())
+    send_and_wait(trs, mainchain_rpc_endpoint)
+    print(json.dumps(api.get_chain_account(trs.params.sendingChainID.hex(), mainchain_rpc_endpoint), indent=4))
+    trs = ccu("sidechain")
+    print("Sidechain ccu:", trs)
+    # print("Certificate", Certificate.from_bytes(trs.params.certificate))
+    print("\nID:", trs.id.hex())
+    send_and_wait(trs, sidechain_rpc_endpoint)
+    print(json.dumps(api.get_chain_account(trs.params.sendingChainID.hex(), sidechain_rpc_endpoint), indent=4))
 
 def ccu_test_suite() -> None:
     print("\n\n --- CCU SUITE --- \n")
@@ -301,21 +416,50 @@ def registration_test_suite():
     print("\n\n --- REGISTRATION SUITE --- \n")
     sidechain_reg_trs = register_sidechain()
     print("Sidechain registration transaction:", sidechain_reg_trs)
+    mainchain_reg_trs = register_mainchain()
+    print("Mainchain registration transaction:", mainchain_reg_trs)
+
     send_and_wait(sidechain_reg_trs, mainchain_rpc_endpoint)
+    send_and_wait(mainchain_reg_trs, sidechain_rpc_endpoint)
+
     print(json.dumps(api.get_chain_account(sidechain_reg_trs.params.chainID.hex(), mainchain_rpc_endpoint), indent=4))
     print(json.dumps(api.get_channel(sidechain_reg_trs.params.chainID.hex(), mainchain_rpc_endpoint), indent=4))
     print(json.dumps(api.get_chain_validators(sidechain_reg_trs.params.chainID.hex(), mainchain_rpc_endpoint), indent=4))
     print(json.dumps(api.get_own_chain_account(mainchain_rpc_endpoint), indent=4))
 
-
-    mainchain_reg_trs = register_mainchain()
-    print("Mainchain registration transaction:", mainchain_reg_trs)
-
-    send_and_wait(mainchain_reg_trs, sidechain_rpc_endpoint)
-    print(json.dumps(api.get_chain_account("03000000", sidechain_rpc_endpoint), indent=4))
-    print(json.dumps(api.get_channel("03000000", sidechain_rpc_endpoint), indent=4))
-    print(json.dumps(api.get_chain_validators("03000000", sidechain_rpc_endpoint), indent=4))
+    print(json.dumps(api.get_chain_account(MAINCHAIN_ID, sidechain_rpc_endpoint), indent=4))
+    print(json.dumps(api.get_channel(MAINCHAIN_ID, sidechain_rpc_endpoint), indent=4))
+    print(json.dumps(api.get_chain_validators(MAINCHAIN_ID, sidechain_rpc_endpoint), indent=4))
     print(json.dumps(api.get_own_chain_account(sidechain_rpc_endpoint), indent=4))
+
+def openSwap():
+    priv_key = sidechain_key_val
+    endpoint = sidechain_rpc_endpoint
+    chainID = SIDECHAIN_ID
+
+    pub_key = priv_key.to_public_key()
+    nonce = int(api.get_auth_account(pub_key.to_address().to_lsk32(), endpoint)["result"]["nonce"])
+    last_block = api.get_last_block(endpoint)
+    params = {
+        "module": "cloak",
+        "command": "openSwap",
+        "senderPublicKey": pub_key,
+        "nonce": nonce,
+        "fee": 50000000,
+        "params": {
+            "qx": os.urandom(32).hex(),
+            "qy": os.urandom(32).hex(),
+            "tokenID": bytes.fromhex(f"{chainID}00000000"),
+            "value": 2*LSK,
+            "recipientAddress": user_key2.to_public_key().to_address(),
+            "timelock": last_block.header.timestamp + 1000,
+        },
+        "signatures": [],
+    }
+    trs = Transaction.from_dict(params)
+    print("trs:", trs)
+    trs.sign(priv_key, bytes.fromhex(chainID))
+    return trs
 
 
 def send_and_wait(trs: Transaction, endpoint: str, wait: bool = True):
@@ -339,7 +483,7 @@ def wait_for_confirmation(trs: Transaction, endpoint: str):
         if block["result"]["transactions"] and any([t["id"] == trs.id.hex() for t in block["result"]["transactions"]]):
             print("\nTransaction included at height", h)
             events = api.get_events_by_height(h, endpoint)["result"]
-            events = [e for e in events if e["topics"][0] == trs.id.hex() and e["module"] == trs.module]
+            events = [e for e in events if e["topics"][0] == trs.id.hex()]
             print("Events:")
             for e in events:
                 print(json.dumps(e, indent=4))
@@ -358,78 +502,46 @@ def stake_for_genesis(chain: str = "mainchain", N: int = 40, onlyInit: bool = Tr
     if chain == "mainchain":
         passphrase = mainchain_passphrase
         endpoint = mainchain_rpc_endpoint
+        init_validators = mainchain_init_validators
     elif chain == "sidechain":
         passphrase = sidechain_passphrase
         endpoint = sidechain_rpc_endpoint
+        init_validators = sidechain_init_validators
     for n in range(N):
         _from = PrivateKey.from_passphrase(passphrase, [44 + 0x80000000, 134 + 0x80000000, 0x80000000 + n])
         _to = _from.to_public_key().to_address()
-        if not onlyInit or _to.to_lsk32() in initValidators:
+        if not onlyInit or _to.to_lsk32() in init_validators:
             send_and_wait(stake(_from, _to, amount= 120*100000000000, chain=chain), endpoint, wait=False)
 
-user_key = PrivateKey(crypto.hash(bytes.fromhex("deadbeefc0feee")))
 
-mainchain_passphrase = "attract squeeze option inflict dynamic end evoke love proof among random blanket table pumpkin general impose access toast undo extend fun employ agree dash"
+
+
+with open("mainchain/passphrase.json", "r") as f:
+    mainchain_passphrase = json.load(f)["passphrase"]
 mainchain_key_val = PrivateKey.from_passphrase(mainchain_passphrase)
-
 mainchain_addr_val = mainchain_key_val.to_public_key().to_address().to_lsk32()
-with open("interop_testing/inverno/passphrase.json", "r") as f:
+
+with open("sidechain/passphrase.json", "r") as f:
     sidechain_passphrase = json.load(f)["passphrase"]
 sidechain_key_val = PrivateKey.from_passphrase(sidechain_passphrase)
+mainchain_key_val = sidechain_key_val
+user_key = PrivateKey(crypto.hash(bytes.fromhex("deadbeefc0feee")))
+user_key2 = PrivateKey(crypto.hash(bytes.fromhex("deadbeefc0feeeee")))
 
 sidechain_rpc_endpoint = "localhost:7887"
-mainchain_rpc_endpoint = "142.93.5.182:4002"
+mainchain_rpc_endpoint = "betanet-node-031.liskdev.net:4002"
 
-with open("interop_testing/inverno/genesis_assets.json", "r") as f:
+with open("sidechain/genesis_assets.json", "r") as f:
     genesis_assets = json.load(f)["assets"]
     pos_assets = next(a for a in genesis_assets if a["module"] == "pos")
-    initValidators = pos_assets["data"]["genesisData"]["initValidators"]
-    initValidatorsData = pos_assets["data"]["validators"]
+    sidechain_init_validators = pos_assets["data"]["genesisData"]["initValidators"]
 
-if __name__ == "__main__":
-    # os.environ["REQUEST_METHOD"] = "socket"
-    SIDECHAIN_ID = "030000ff"
-    SIDECHAIN_NAME = "grandeinvernorosso"
-    print(json.dumps(api.get_node_info(mainchain_rpc_endpoint), indent=4))
+with open("mainchain/genesis_assets.json", "r") as f:
+    genesis_assets = json.load(f)["assets"]
+    pos_assets = next(a for a in genesis_assets if a["module"] == "pos")
+    mainchain_init_validators = pos_assets["data"]["genesisData"]["initValidators"]
 
-    # send_and_wait(token_transfer("mainchain"), mainchain_rpc_endpoint)
-    # send_and_wait(token_transfer("sidechain"), sidechain_rpc_endpoint)
-    # send_and_wait(register_validator("mainchain"), mainchain_rpc_endpoint)
-    # print(json.dumps(api.get_all_pos_validator(sidechain_rpc_endpoint), indent=4))
-    
-    # stake_for_genesis(chain="sidechain", N=120)
-        
-    # registration_test_suite()
-    # ccu_test_suite()
-
-    # print(json.dumps(api.get_block_by_height(17815, mainchain_rpc_endpoint), indent=4))
-    # print(json.dumps(api.get_events_by_height(17815, mainchain_rpc_endpoint), indent=4))
-    # print(json.dumps(api.get_chain_account(SIDECHAIN_ID, mainchain_rpc_endpoint), indent=4))
-    # print(json.dumps(api.get_all_pos_validator(sidechain_rpc_endpoint), indent=4))
-    # print(json.dumps(api.get_last_bft_params(sidechain_rpc_endpoint), indent=4))
-    # print(json.dumps(api.get_pos_validator("lskvvfdbroskc5akzenxv9n9tq33ttbevk59cjxx4", sidechain_rpc_endpoint), indent=4))
-    # print(json.dumps(api.get_validator("lskg9x88ccc6b3q8zv8mxvzajozrctap4hprbm5uo", sidechain_rpc_endpoint), indent=4))
-    
-    # print(json.dumps(api.get_chain_account(SIDECHAIN_ID, mainchain_rpc_endpoint), indent=4))
-    # print(api.get_last_certificate(sidechain_rpc_endpoint))
-    # stake_for_genesis(chain="sidechain", N=120)
-
-
-    # all_pos_validators = api.get_all_pos_validator(mainchain_rpc_endpoint)["result"]["validators"]
-    
-
-    # current_validators = api.get_last_bft_params(sidechain_rpc_endpoint)["result"]["validators"]
-    # current_validators_address = [v["address"] for v in current_validators]
-    # print(len(all_pos_validators), len(initValidators), len(current_validators_address))
-
-    # certified_validators = api.get_chain_validators(SIDECHAIN_ID, mainchain_rpc_endpoint)["result"]["activeValidators"]
-    # certified_validators_address = []
-    # for key in [v["blsKey"] for v in certified_validators]:
-    #     if u := next((u for u in initValidatorsData if u["blsKey"] == key), None):
-    #         certified_validators_address.append(u["address"])
-
-    # for i, v in enumerate(current_validators_address):
-    #     if v not in initValidators:
-    #         print(i, v)
-
-    # print(len(certified_validators_address))
+SIDECHAIN_ID = "03000042"
+MAINCHAIN_ID = "03000000"
+SIDECHAIN_NAME = "atomic_cloak"
+LSK = 10**8
