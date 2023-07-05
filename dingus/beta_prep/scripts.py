@@ -432,34 +432,6 @@ def registration_test_suite():
     print(json.dumps(api.get_chain_validators(MAINCHAIN_ID, sidechain_rpc_endpoint), indent=4))
     print(json.dumps(api.get_own_chain_account(sidechain_rpc_endpoint), indent=4))
 
-def openSwap():
-    priv_key = sidechain_key_val
-    endpoint = sidechain_rpc_endpoint
-    chainID = SIDECHAIN_ID
-
-    pub_key = priv_key.to_public_key()
-    nonce = int(api.get_auth_account(pub_key.to_address().to_lsk32(), endpoint)["result"]["nonce"])
-    last_block = api.get_last_block(endpoint)
-    params = {
-        "module": "cloak",
-        "command": "openSwap",
-        "senderPublicKey": pub_key,
-        "nonce": nonce,
-        "fee": 50000000,
-        "params": {
-            "qx": os.urandom(32).hex(),
-            "qy": os.urandom(32).hex(),
-            "tokenID": bytes.fromhex(f"{chainID}00000000"),
-            "value": 2*LSK,
-            "recipientAddress": user_key2.to_public_key().to_address(),
-            "timelock": last_block.header.timestamp + 1000,
-        },
-        "signatures": [],
-    }
-    trs = Transaction.from_dict(params)
-    print("trs:", trs)
-    trs.sign(priv_key, bytes.fromhex(chainID))
-    return trs
 
 
 def send_and_wait(trs: Transaction, endpoint: str, wait: bool = True):

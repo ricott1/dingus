@@ -8,7 +8,6 @@ from dingus.tree.constants import (
     DEFAULT_KEY_LENGTH,
     EMPTY_VALUE,
     LEAF_PREFIX,
-    INTERNAL_LEAF_PREFIX,
     BRANCH_PREFIX,
     EMPTY_HASH,
     NODE_HASH_SIZE,
@@ -198,7 +197,7 @@ class Query(object):
     @property
     def binary_path(self) -> str:
         # Convert the key to binary
-        return binary_expansion(self.key)[: self.height]
+        return binary_expansion(self.key)[:self.height]
 
     @property
     def binary_key(self) -> str:
@@ -217,9 +216,7 @@ class Query(object):
         if self.binary_key[: self.height - 1] != q.binary_key[: q.height - 1]:
             return False
 
-        return (self.binary_key[self.height - 1] == "0" and q.binary_key[self.height - 1] == "1") or (
-            self.binary_key[self.height - 1] == "1" and q.binary_key[self.height - 1] == "0"
-        )
+        return self.binary_key[self.height - 1] != q.binary_key[self.height - 1]
 
 
 @dataclass
@@ -234,4 +231,11 @@ class Proof(object):
     queries: list[Query]
 
     def __str__(self) -> str:
-        return f"Proof({[h.hex() for h in self.sibling_hashes]}, {[str(q) for q in self.queries]})"
+        keys = '\n      '.join([''] + [q.key.hex() for q in self.queries] + [''])
+        sibling_hashes = '\n      '.join([''] + [h.hex() for h in self.sibling_hashes] + [''])
+        return f"""
+Proof:
+    keys:{keys}
+    sibling_hashes:{sibling_hashes}
+"""
+

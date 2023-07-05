@@ -1,0 +1,31 @@
+{
+	"title": "Sparse Merkle tree update",
+	"summary": "Introduce sparse Merkle trees",
+	"config": {},
+	"runner": "",
+	"handler": "",
+	"testCases": [
+		{
+			"description": "Given key-value entries: N, deleting D, querying Q. Order of insertion: i.",
+			"input": {
+				"keys": [],
+				"values":[],
+				"deleteKeys": [],
+				"queryKeys": []
+			},
+			"output": {
+				"merkleRoot": "",
+				"proof": {
+					"siblingHashes": [],
+					"queries": [
+						{
+							"bitmap": "",
+							"key": "",
+							"value": ""
+						}
+					]
+				}
+			}
+		},
+    ]
+}

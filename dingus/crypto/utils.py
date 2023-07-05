@@ -32,6 +32,12 @@ def passphrase_to_seed(passphrase: str, password: str ="") -> bytes:
 def hash(msg: bytes) -> bytes:
     return sha256(msg).digest()
 
+def keccak256(msg: bytes) -> bytes:
+    from Crypto.Hash import keccak
+    k = keccak.new(digest_bits=256)
+    k.update(msg)
+    return k.digest()
+
 def signBLS(sk: bls.PrivateKey | bytes, tag: bytes, chainID: bytes, message: bytes) -> bls.G2Element:
     if isinstance(sk, bytes):
         sk = bls.PrivateKey.from_bytes(sk)

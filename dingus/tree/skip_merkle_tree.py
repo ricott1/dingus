@@ -582,6 +582,7 @@ def calculate_root(sibling_hashes: list[bytes], queries: list[Query]) -> bytes:
         if q.height == 0:
             # To avoid appending useless bits to all query bitmaps
             assert len(q.binary_bitmap) == 0
+            assert len(sibling_hashes) == 0
             return q.hash
 
         # we distinguish three cases for the sibling hash:
@@ -602,8 +603,8 @@ def calculate_root(sibling_hashes: list[bytes], queries: list[Query]) -> bytes:
             # Check that the bitmap coincide from the merging point up.
             assert len(q.binary_bitmap) == len(sorted_queries[0].binary_bitmap)
             if len(q.binary_bitmap):
-                print(f"query: key={q.key.hex()[:4]:4s} bitmap={q.binary_bitmap:12s} - {q.bitmap.hex()}")
-                print(f"sibli: key={sorted_queries[0].key.hex()[:4]:4s} bitmap={sorted_queries[0].binary_bitmap:12s} - {sorted_queries[0].bitmap.hex()}")
+                # print(f"query: key={q.key.hex()[:4]:4s} bitmap={q.binary_bitmap:12s} - {q.bitmap.hex()}")
+                # print(f"sibli: key={sorted_queries[0].key.hex()[:4]:4s} bitmap={sorted_queries[0].binary_bitmap:12s} - {sorted_queries[0].bitmap.hex()}")
                 assert q.binary_bitmap[1:] == sorted_queries[0].binary_bitmap[1:]
 
             del sorted_queries[0]
@@ -627,6 +628,300 @@ def calculate_root(sibling_hashes: list[bytes], queries: list[Query]) -> bytes:
 
     raise Exception("Can not calculate root hash")
 
+def remove_keys_from_proof(base_proof: Proof, removing_keys: list[bytes]) -> Proof:
+    import copy
+    sibling_hashes = copy.deepcopy(base_proof.sibling_hashes)
+    queries = copy.deepcopy(base_proof.queries)
+    removing_sibling_hashes: list[bytes] = []
+    adding_sibling_hashes: list[tuple[int, bytes]] = []
+    adding_sibling_hash_index = 0
+    sorted_queries = sorted(queries, key=lambda q: (-q.height, q.key))
+    for q in sorted_queries:
+        if q.key in removing_keys:
+            q.removing = True
+        else:
+            q.removing = False
+
+    while len(sorted_queries) > 0:
+        q = sorted_queries.pop(0)
+
+        # We reached the top of the tree, return merkle root
+        if q.height == 0:
+            # To avoid appending useless bits to all query bitmaps
+            assert len(q.binary_bitmap) == 0
+            assert len(sibling_hashes) == 0
+            for idx, h in adding_sibling_hashes:
+                assert h not in base_proof.sibling_hashes
+                base_proof.sibling_hashes.insert(idx, h)
+                assert h in base_proof.sibling_hashes
+            for h in removing_sibling_hashes:
+                assert h in base_proof.sibling_hashes
+                base_proof.sibling_hashes.remove(h)
+                assert h not in base_proof.sibling_hashes
+
+            updated_queries = [q for q in base_proof.queries]
+            for q in base_proof.queries:
+                if q.key in removing_keys:
+                    updated_queries.remove(q)
+            for q in updated_queries:
+                assert q.key not in removing_keys
+            
+            base_proof.queries = updated_queries
+
+            return base_proof
+
+        # we distinguish three cases for the sibling hash:
+        # 1. sibling is next element of sorted_queries
+        if len(sorted_queries) > 0 and q.is_sibling_of(sorted_queries[0]):
+            sibling_hash = sorted_queries[0].hash
+            # We are merging two branches.
+            # Check that the bitmap at the merging point is consistent with the nodes type.
+            if sorted_queries[0].hash == EMPTY_HASH:
+                assert q.binary_bitmap[0] == "0"
+            else:
+                assert q.binary_bitmap[0] == "1"
+            if q.hash == EMPTY_HASH:
+                assert sorted_queries[0].binary_bitmap[0] == "0"
+            else:
+                assert sorted_queries[0].binary_bitmap[0] == "1"
+
+            # Check that the bitmap coincide from the merging point up.
+            assert len(q.binary_bitmap) == len(sorted_queries[0].binary_bitmap)
+            if len(q.binary_bitmap):
+                assert q.binary_bitmap[1:] == sorted_queries[0].binary_bitmap[1:]
+            
+            # If the branch is being removed, we need to add the sibling hash to the list of hashes to be added
+            if not q.removing and sorted_queries[0].removing:
+                adding_sibling_hashes.append((adding_sibling_hash_index, sibling_hash))
+                adding_sibling_hash_index += 1
+                # print("Adding sibling merging branches", sibling_hash.hex()[:4])
+            elif q.removing and not sorted_queries[0].removing:
+                adding_sibling_hashes.append((adding_sibling_hash_index, q.hash))
+                adding_sibling_hash_index += 1
+                # print("Adding sibling merging branches", q.hash.hex()[:4])
+                # If the other branch is not removed, we update the query to not be removed
+                # print("Updating query to not be removed", q.binary_bitmap, q.key.hex()[:4])
+                q.removing = False
+            
+            del sorted_queries[0]
+        # 2. sibling is default empty node
+        elif q.binary_bitmap[0] == "0":
+            sibling_hash = EMPTY_HASH
+        # 3. sibling hash comes from sibling_hashes
+        elif q.binary_bitmap[0] == "1":
+            sibling_hash = sibling_hashes.pop(0)
+            adding_sibling_hash_index += 1
+            if q.removing:
+                # print("Removing unnecessary sibling", sibling_hash.hex()[:4])
+                removing_sibling_hashes.append(sibling_hash)
+
+        d = q.binary_key[q.height - 1]
+        if d == "0":
+            q.hash = BranchNode(q.hash, sibling_hash).hash
+        elif d == "1":
+            q.hash = BranchNode(sibling_hash, q.hash).hash
+
+        q.binary_bitmap = q.binary_bitmap[1:]
+        sorted_queries = insert_and_filter_queries(q, sorted_queries)
+
+    raise Exception("Can not calculate root hash")
+
+
+def get_visited_nodes(sibling_hashes: list[bytes], queries: list[Query]) -> dict[str, bytes]:
+    visited_nodes: dict[str, bytes] = {}
+    sorted_queries = sorted(queries, key=lambda q: (-q.height, q.key))
+
+    while len(sorted_queries) > 0:
+        q = sorted_queries.pop(0)
+
+        # We reached the top of the tree, return merkle root
+        if q.height == 0:
+            # To avoid appending useless bits to all query bitmaps
+            assert len(q.binary_bitmap) == 0
+            assert len(sibling_hashes) == 0
+            visited_nodes["root"] = q.hash
+            return visited_nodes
+
+        # we distinguish three cases for the sibling hash:
+        # 1. sibling is next element of sorted_queries
+        if len(sorted_queries) > 0 and q.is_sibling_of(sorted_queries[0]):
+            sibling_hash = sorted_queries[0].hash
+            # We are merging two branches.
+            # Check that the bitmap at the merging point is consistent with the nodes type.
+            if sorted_queries[0].hash == EMPTY_HASH:
+                assert q.binary_bitmap[0] == "0"
+            else:
+                assert q.binary_bitmap[0] == "1"
+            if q.hash == EMPTY_HASH:
+                assert sorted_queries[0].binary_bitmap[0] == "0"
+            else:
+                assert sorted_queries[0].binary_bitmap[0] == "1"
+
+            # Check that the bitmap coincide from the merging point up.
+            assert len(q.binary_bitmap) == len(sorted_queries[0].binary_bitmap)
+            if len(q.binary_bitmap):
+                # print(f"query: key={q.key.hex()[:4]:4s} bitmap={q.binary_bitmap:12s} - {q.bitmap.hex()}")
+                # print(f"sibli: key={sorted_queries[0].key.hex()[:4]:4s} bitmap={sorted_queries[0].binary_bitmap:12s} - {sorted_queries[0].bitmap.hex()}")
+                assert q.binary_bitmap[1:] == sorted_queries[0].binary_bitmap[1:]
+
+            del sorted_queries[0]
+        # 2. sibling is default empty node
+        elif q.binary_bitmap[0] == "0":
+            sibling_hash = EMPTY_HASH
+        # 3. sibling hash comes from sibling_hashes
+        elif q.binary_bitmap[0] == "1":
+            sibling_hash = sibling_hashes.pop(0)
+
+        d = q.binary_key[q.height - 1]
+        if d == "0":
+            # print(f"Hashing at h={len(q.binary_bitmap)}", q.hash.hex()[:4], sibling_hash.hex()[:4], " --> ", BranchNode(q.hash, sibling_hash).hash.hex()[:4])
+            # print(f"Hashing >> left: {q.binary_key[:q.height]} right: {q.binary_key[:q.height - 1] + '1'} into {q.binary_key[:q.height - 1]}")
+            sibling_binary_key = q.binary_key[:q.height - 1] + "1"
+            visited_nodes[q.binary_key[:q.height]] = q.hash
+            visited_nodes[sibling_binary_key] = sibling_hash
+            q.hash = BranchNode(q.hash, sibling_hash).hash
+        elif d == "1":
+            # print(f"Hashing at h={len(q.binary_bitmap)}", sibling_hash.hex()[:4], q.hash.hex()[:4], " --> ", BranchNode(sibling_hash, q.hash).hash.hex()[:4])
+            # print(f"Hashing >> left: {q.binary_key[:q.height - 1] + '0'} right: {q.binary_key[:q.height]} into {q.binary_key[:q.height - 1]}")
+            sibling_binary_key = q.binary_key[:q.height - 1] + "0"
+            visited_nodes[q.binary_key[:q.height]] = q.hash
+            # print(f"Inserted {q.binary_key[:q.height]}: {q.hash.hex()[:4]}")
+            visited_nodes[sibling_binary_key] = sibling_hash
+            # print(f"Inserted {sibling_binary_key}: {sibling_hash.hex()[:4]}")
+            
+            q.hash = BranchNode(sibling_hash, q.hash).hash
+
+        q.binary_bitmap = q.binary_bitmap[1:]
+        sorted_queries = insert_and_filter_queries(q, sorted_queries)
+
+    raise Exception("Can not calculate root hash")
+
+def calculate_root_with_visited_nodes_override(sibling_hashes: list[bytes], queries: list[Query], visited_nodes_override: dict[str, bytes]) -> bytes:
+    sorted_queries = sorted(queries, key=lambda q: (-q.height, q.key))
+
+    while len(sorted_queries) > 0:
+        q = sorted_queries.pop(0)
+
+        # We reached the top of the tree, return merkle root
+        if q.height == 0:
+            # To avoid appending useless bits to all query bitmaps
+            assert len(q.binary_bitmap) == 0
+            assert len(sibling_hashes) == 0
+            return q.hash
+
+        # we distinguish three cases for the sibling hash:
+        # 1. sibling is next element of sorted_queries
+        if len(sorted_queries) > 0 and q.is_sibling_of(sorted_queries[0]):
+            sibling_hash = sorted_queries[0].hash
+            # We are merging two branches.
+            # Check that the bitmap at the merging point is consistent with the nodes type.
+            if sorted_queries[0].hash == EMPTY_HASH:
+                assert q.binary_bitmap[0] == "0"
+            else:
+                assert q.binary_bitmap[0] == "1"
+            if q.hash == EMPTY_HASH:
+                assert sorted_queries[0].binary_bitmap[0] == "0"
+            else:
+                assert sorted_queries[0].binary_bitmap[0] == "1"
+
+            # Check that the bitmap coincide from the merging point up.
+            assert len(q.binary_bitmap) == len(sorted_queries[0].binary_bitmap)
+            if len(q.binary_bitmap):
+                # print(f"query: key={q.key.hex()[:4]:4s} bitmap={q.binary_bitmap:12s} - {q.bitmap.hex()}")
+                # print(f"sibli: key={sorted_queries[0].key.hex()[:4]:4s} bitmap={sorted_queries[0].binary_bitmap:12s} - {sorted_queries[0].bitmap.hex()}")
+                assert q.binary_bitmap[1:] == sorted_queries[0].binary_bitmap[1:]
+
+            del sorted_queries[0]
+        # 2. sibling is default empty node
+        elif q.binary_bitmap[0] == "0":
+            sibling_hash = EMPTY_HASH
+        # 3. sibling hash comes from sibling_hashes
+        elif q.binary_bitmap[0] == "1":
+            sibling_hash = sibling_hashes.pop(0)
+            # here we inject the nodes from the visited_nodes_override
+            sibling_binary_key = q.binary_key[:q.height - 1] + "0" if q.binary_key[q.height - 1] == "1" else q.binary_key[:q.height - 1] + "1"
+            if sibling_binary_key in visited_nodes_override:
+                # print("sibling key", q.binary_path, q.binary_key[:q.height+5], sibling_binary_key)
+                # print(f"overriding sibling hash {sibling_hash.hex()[:4]} with {visited_nodes_override[sibling_binary_key].hex()[:4]} at key {sibling_binary_key}")
+                sibling_hash = visited_nodes_override[sibling_binary_key]
+            
+        d = q.binary_key[q.height - 1]
+        if d == "0":
+            # print(f"Hashing at h={len(q.binary_bitmap)}", q.hash.hex()[:4], sibling_hash.hex()[:4], " --> ", BranchNode(q.hash, sibling_hash).hash.hex()[:4])
+            q.hash = BranchNode(q.hash, sibling_hash).hash
+        elif d == "1":
+            # print(f"Hashing at h={len(q.binary_bitmap)}", sibling_hash.hex()[:4], q.hash.hex()[:4], " --> ", BranchNode(sibling_hash, q.hash).hash.hex()[:4])
+            q.hash = BranchNode(sibling_hash, q.hash).hash
+
+        q.binary_bitmap = q.binary_bitmap[1:]
+        sorted_queries = insert_and_filter_queries(q, sorted_queries)
+
+    raise Exception("Can not calculate root hash")
+
+def get_nodes_override_mapping(sibling_hashes: list[bytes], queries: list[Query], visited_nodes_override: dict[str, bytes]) -> dict[bytes, bytes]:
+    override_mapping: dict[bytes, bytes] = {}
+    sorted_queries = sorted(queries, key=lambda q: (-q.height, q.key))
+
+    while len(sorted_queries) > 0:
+        q = sorted_queries.pop(0)
+
+        # We reached the top of the tree, return merkle root
+        if q.height == 0:
+            # To avoid appending useless bits to all query bitmaps
+            assert len(q.binary_bitmap) == 0
+            assert len(sibling_hashes) == 0
+            return override_mapping
+
+        # we distinguish three cases for the sibling hash:
+        # 1. sibling is next element of sorted_queries
+        if len(sorted_queries) > 0 and q.is_sibling_of(sorted_queries[0]):
+            sibling_hash = sorted_queries[0].hash
+            # We are merging two branches.
+            # Check that the bitmap at the merging point is consistent with the nodes type.
+            if sorted_queries[0].hash == EMPTY_HASH:
+                assert q.binary_bitmap[0] == "0"
+            else:
+                assert q.binary_bitmap[0] == "1"
+            if q.hash == EMPTY_HASH:
+                assert sorted_queries[0].binary_bitmap[0] == "0"
+            else:
+                assert sorted_queries[0].binary_bitmap[0] == "1"
+
+            # Check that the bitmap coincide from the merging point up.
+            assert len(q.binary_bitmap) == len(sorted_queries[0].binary_bitmap)
+            if len(q.binary_bitmap):
+                # print(f"query: key={q.key.hex()[:4]:4s} bitmap={q.binary_bitmap:12s} - {q.bitmap.hex()}")
+                # print(f"sibli: key={sorted_queries[0].key.hex()[:4]:4s} bitmap={sorted_queries[0].binary_bitmap:12s} - {sorted_queries[0].bitmap.hex()}")
+                assert q.binary_bitmap[1:] == sorted_queries[0].binary_bitmap[1:]
+
+            del sorted_queries[0]
+        # 2. sibling is default empty node
+        elif q.binary_bitmap[0] == "0":
+            sibling_hash = EMPTY_HASH
+        # 3. sibling hash comes from sibling_hashes
+        elif q.binary_bitmap[0] == "1":
+            sibling_hash = sibling_hashes.pop(0)
+            # here we inject the nodes from the visited_nodes_override
+            sibling_binary_key = q.binary_key[:q.height - 1] + "0" if q.binary_key[q.height - 1] == "1" else q.binary_key[:q.height - 1] + "1"
+            if sibling_binary_key in visited_nodes_override:
+                # print("sibling key", q.binary_path, q.binary_key[:q.height+5], sibling_binary_key)
+                # print(f"overriding sibling hash {sibling_hash.hex()[:4]} with {visited_nodes_override[sibling_binary_key].hex()[:4]} at key {sibling_binary_key}")
+                override_mapping[sibling_hash] = visited_nodes_override[sibling_binary_key]
+                sibling_hash = visited_nodes_override[sibling_binary_key]
+                
+            
+        d = q.binary_key[q.height - 1]
+        if d == "0":
+            # print(f"Hashing at h={len(q.binary_bitmap)}", q.hash.hex()[:4], sibling_hash.hex()[:4], " --> ", BranchNode(q.hash, sibling_hash).hash.hex()[:4])
+            q.hash = BranchNode(q.hash, sibling_hash).hash
+        elif d == "1":
+            # print(f"Hashing at h={len(q.binary_bitmap)}", sibling_hash.hex()[:4], q.hash.hex()[:4], " --> ", BranchNode(sibling_hash, q.hash).hash.hex()[:4])
+            q.hash = BranchNode(sibling_hash, q.hash).hash
+
+        q.binary_bitmap = q.binary_bitmap[1:]
+        sorted_queries = insert_and_filter_queries(q, sorted_queries)
+
+    raise Exception("Can not calculate root hash")
 
 def is_inclusion_proof(query_key: bytes, query: Query) -> bool:
     return query_key == query.key and query.value != EMPTY_VALUE
