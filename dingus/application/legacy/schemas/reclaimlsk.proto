@@ -1,0 +1,6 @@
+syntax = "proto2";
+
+message ReclaimLSK {
+    required uint64 amount = 1;
+    }
+

@@ -84,6 +84,12 @@ class PrivateKey(bytes, SigningKey):
 
     def to_public_key(self) -> PublicKey:
         return PublicKey(self.verify_key._key)
+    
+    def to_address(self) -> PublicKey:
+        return PublicKey(self.verify_key._key).to_address()
+    
+    def to_lsk32(self) -> str:
+        return self.to_public_key().to_address().to_lsk32()
 
     def to_bytes(self) -> bytes:
         return bytes(self)
@@ -91,7 +97,7 @@ class PrivateKey(bytes, SigningKey):
     def encrypt(self, password: str = "", iteration_count: int = 1000000) -> dict:
         salt = os.urandom(8)
         iv = os.urandom(16)
-        key = hashlib.pbkdf2_hmac("sha256", str.encode(password), salt, iteration_count)
+        key = hashlib.pbkdf2_hmac("sha256", str.encode(password), salt, iteration_count)[:16]
         # key = nacl.pwhash.argon2id.kdf(size, password, salt)
 
         # Encryption with AES-256-CBC

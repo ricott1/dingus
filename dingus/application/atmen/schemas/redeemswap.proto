@@ -1,0 +1,6 @@
+syntax = "proto2";
+
+message RedeemSwap {
+    required bytes swapID = 1;
+    }
+

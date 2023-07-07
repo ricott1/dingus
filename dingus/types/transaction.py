@@ -147,8 +147,8 @@ from dingus.application.legacy.schemas import json as legacy_json
 from dingus.application.legacy.schemas import proto as legacy_proto
 from dingus.application.pos.schemas import json as pos_json
 from dingus.application.pos.schemas import proto as pos_proto
-from dingus.application.cloak.schemas import json as cloak_json
-from dingus.application.cloak.schemas import proto as cloak_proto
+from dingus.application.atmen.schemas import json as atmen_json
+from dingus.application.atmen.schemas import proto as atmen_proto
 
 
 params_json_schemas = {
@@ -156,14 +156,14 @@ params_json_schemas = {
     "interoperability": interop_json,
     "legacy": legacy_json,
     "pos": pos_json,
-    "cloak": cloak_json
+    "atmen": atmen_json
 }
 params_proto_schemas = {
     "token": token_proto,
     "interoperability": interop_proto,
     "legacy": legacy_proto,
     "pos": pos_proto,
-    "cloak": cloak_proto
+    "atmen": atmen_proto
 }
 
 transactionSchema = {

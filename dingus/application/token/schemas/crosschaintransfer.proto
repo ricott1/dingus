@@ -1,0 +1,12 @@
+syntax = "proto2";
+
+message CrossChainTransfer {
+    required bytes tokenID = 1;
+    required uint64 amount = 2;
+    required bytes receivingChainID = 3;
+    required bytes recipientAddress = 4;
+    required string data = 5;
+    required uint64 messageFee = 6;
+    required bytes messageFeeTokenID = 7;
+    }
+

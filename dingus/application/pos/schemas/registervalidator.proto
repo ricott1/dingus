@@ -1,0 +1,9 @@
+syntax = "proto2";
+
+message RegisterValidator {
+    required string name = 1;
+    required bytes blsKey = 2;
+    required bytes proofOfPossession = 3;
+    required bytes generatorKey = 4;
+    }
+

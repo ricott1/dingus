@@ -1,0 +1,11 @@
+syntax = "proto2";
+
+message OpenSwap {
+    required bytes swapID = 1;
+    required bytes tokenID = 2;
+    required uint64 value = 3;
+    required bytes recipientAddress = 4;
+    required uint32 timelock = 5;
+    required uint64 tip = 6;
+    }
+

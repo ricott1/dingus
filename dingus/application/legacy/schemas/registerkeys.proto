@@ -1,0 +1,8 @@
+syntax = "proto2";
+
+message RegisterKeys {
+    required bytes blsKey = 1;
+    required bytes proofOfPossession = 2;
+    required bytes generatorKey = 3;
+    }
+

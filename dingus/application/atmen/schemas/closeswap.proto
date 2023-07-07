@@ -1,0 +1,7 @@
+syntax = "proto2";
+
+message CloseSwap {
+    required bytes swapID = 1;
+    required bytes secret = 2;
+    }
+

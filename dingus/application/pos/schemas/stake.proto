@@ -1,0 +1,11 @@
+syntax = "proto2";
+
+message Stake {
+    repeated Stake_Stakes stakes = 1;
+    }
+
+message Stake_Stakes {
+    required bytes validatorAddress = 1;
+    required sint64 amount = 2;
+    }
+
